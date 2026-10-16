@@ -1,0 +1,49 @@
+# Data: never commit raw or generated data
+data/raw/*
+data/interim/*
+data/processed/*
+!data/**/.gitkeep
+*.parquet
+*.feather
+*.npz
+*.pt
+*.pth
+*.ckpt
+
+# AMLSim outputs and local install
+AMLSim/
+outputs/
+tmp/
+
+# Experiment artifacts (keep experiments.csv and summary tables)
+experiments/**/checkpoints/
+experiments/**/runs/
+mlruns/
+wandb/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+.venv/
+venv/
+
+# Secrets and local config
+.env
+*.secret
+configs/local*.yaml
+
+# Local working files; never commit
+/.local/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Planning notes and generated decks live on Drive, not in the repo
+docs/backlog.md
+docs/*.html

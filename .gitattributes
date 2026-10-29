@@ -3,3 +3,5 @@
 *.ps1 text eol=crlf
 *.png binary
 *.pdf binary
+# Patches must apply byte for byte; never rewrite their line endings
+*.patch -text

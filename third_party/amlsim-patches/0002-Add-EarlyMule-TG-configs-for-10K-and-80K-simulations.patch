@@ -1,0 +1,2257 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Verzol <giangtuanminh2703@gmail.com>
+Date: Thu, 29 Oct 2026 16:25:30 +0800
+Subject: [PATCH 2/2] Add EarlyMule-TG configs for 10K and 80K simulations
+
+- conf_10K.json: 10K run with the keys missing from paramFiles/10K/conf.json.
+- 10K-earlymule: cycle alerts use schedule_id=1 (RANDOM_INTERVAL, sorted)
+  so relays receive before they send.
+- 80K-earlymule-a100/a200: 10K-earlymule accounts and normal models x8,
+  with 100 or 200 alerts (fan_in/fan_out/cycle = 30/30/40).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ conf_10K.json                                 |  91 ++++++
+ conf_10K_earlymule.json                       |  91 ++++++
+ conf_80K-earlymule-a100.json                  |  91 ++++++
+ conf_80K-earlymule-a200.json                  |  91 ++++++
+ paramFiles/10K-earlymule/accounts.csv         |   7 +
+ paramFiles/10K-earlymule/alertPatterns.csv    |   4 +
+ paramFiles/10K-earlymule/conf.json            |  90 ++++++
+ paramFiles/10K-earlymule/degree.csv           | 142 ++++++++
+ paramFiles/10K-earlymule/normalModels.csv     |   7 +
+ paramFiles/10K-earlymule/schema.json          | 305 ++++++++++++++++++
+ paramFiles/10K-earlymule/transactionType.csv  |   2 +
+ paramFiles/80K-earlymule-a100/accounts.csv    |   7 +
+ .../80K-earlymule-a100/alertPatterns.csv      |   4 +
+ paramFiles/80K-earlymule-a100/conf.json       |  90 ++++++
+ paramFiles/80K-earlymule-a100/degree.csv      | 142 ++++++++
+ .../80K-earlymule-a100/normalModels.csv       |   7 +
+ paramFiles/80K-earlymule-a100/schema.json     | 305 ++++++++++++++++++
+ .../80K-earlymule-a100/transactionType.csv    |   2 +
+ paramFiles/80K-earlymule-a200/accounts.csv    |   7 +
+ .../80K-earlymule-a200/alertPatterns.csv      |   4 +
+ paramFiles/80K-earlymule-a200/conf.json       |  90 ++++++
+ paramFiles/80K-earlymule-a200/degree.csv      | 142 ++++++++
+ .../80K-earlymule-a200/normalModels.csv       |   7 +
+ paramFiles/80K-earlymule-a200/schema.json     | 305 ++++++++++++++++++
+ .../80K-earlymule-a200/transactionType.csv    |   2 +
+ 25 files changed, 2035 insertions(+)
+ create mode 100644 conf_10K.json
+ create mode 100644 conf_10K_earlymule.json
+ create mode 100644 conf_80K-earlymule-a100.json
+ create mode 100644 conf_80K-earlymule-a200.json
+ create mode 100644 paramFiles/10K-earlymule/accounts.csv
+ create mode 100644 paramFiles/10K-earlymule/alertPatterns.csv
+ create mode 100644 paramFiles/10K-earlymule/conf.json
+ create mode 100644 paramFiles/10K-earlymule/degree.csv
+ create mode 100644 paramFiles/10K-earlymule/normalModels.csv
+ create mode 100644 paramFiles/10K-earlymule/schema.json
+ create mode 100644 paramFiles/10K-earlymule/transactionType.csv
+ create mode 100644 paramFiles/80K-earlymule-a100/accounts.csv
+ create mode 100644 paramFiles/80K-earlymule-a100/alertPatterns.csv
+ create mode 100644 paramFiles/80K-earlymule-a100/conf.json
+ create mode 100644 paramFiles/80K-earlymule-a100/degree.csv
+ create mode 100644 paramFiles/80K-earlymule-a100/normalModels.csv
+ create mode 100644 paramFiles/80K-earlymule-a100/schema.json
+ create mode 100644 paramFiles/80K-earlymule-a100/transactionType.csv
+ create mode 100644 paramFiles/80K-earlymule-a200/accounts.csv
+ create mode 100644 paramFiles/80K-earlymule-a200/alertPatterns.csv
+ create mode 100644 paramFiles/80K-earlymule-a200/conf.json
+ create mode 100644 paramFiles/80K-earlymule-a200/degree.csv
+ create mode 100644 paramFiles/80K-earlymule-a200/normalModels.csv
+ create mode 100644 paramFiles/80K-earlymule-a200/schema.json
+ create mode 100644 paramFiles/80K-earlymule-a200/transactionType.csv
+
+diff --git a/conf_10K.json b/conf_10K.json
+new file mode 100644
+index 0000000..580a525
+--- /dev/null
++++ b/conf_10K.json
+@@ -0,0 +1,91 @@
++{
++  "general": {
++    "random_seed": 0,
++    "simulation_name": "10K",
++    "total_steps": 720,
++    "base_date": "2017-01-01"
++  },
++  "default": {
++    "min_amount": 100,
++    "max_amount": 1000,
++    "min_balance": 50000,
++    "max_balance": 100000,
++    "start_step": -1,
++    "end_step": -1,
++    "start_range": -1,
++    "end_range": -1,
++    "transaction_model": 1,
++    "margin_ratio": 0.1,
++    "bank_id": "default",
++    "cash_in": {
++      "normal_interval": 100,
++      "fraud_interval": 50,
++      "normal_min_amount": 50,
++      "normal_max_amount": 100,
++      "fraud_min_amount": 500,
++      "fraud_max_amount": 1000
++    },
++    "cash_out": {
++      "normal_interval": 10,
++      "fraud_interval": 100,
++      "normal_min_amount": 10,
++      "normal_max_amount": 100,
++      "fraud_min_amount": 1000,
++      "fraud_max_amount": 2000
++    }
++  },
++  "input": {
++    "directory": "paramFiles/10K",
++    "schema": "schema.json",
++    "accounts": "accounts.csv",
++    "alert_patterns": "alertPatterns.csv",
++    "normal_models": "normalModels.csv",
++    "degree": "degree.csv",
++    "transaction_type": "transactionType.csv",
++    "is_aggregated_accounts": true
++  },
++  "temporal": {
++    "directory": "tmp",
++    "transactions": "transactions.csv",
++    "accounts": "accounts.csv",
++    "alert_members": "alert_members.csv",
++    "normal_models": "normal_models.csv"
++  },
++  "output": {
++    "directory": "outputs",
++    "accounts": "accounts.csv",
++    "transactions": "transactions.csv",
++    "cash_transactions": "cash_tx.csv",
++    "alert_members": "alert_accounts.csv",
++    "alert_transactions": "alert_transactions.csv",
++    "sar_accounts": "sar_accounts.csv",
++    "party_individuals": "individuals-bulkload.csv",
++    "party_organizations": "organizations-bulkload.csv",
++    "account_mapping": "accountMapping.csv",
++    "resolved_entities": "resolvedentities.csv",
++    "transaction_log": "tx_log.csv",
++    "counter_log": "tx_count.csv",
++    "diameter_log": "diameter.csv"
++  },
++  "graph_generator": {
++    "degree_threshold": 10,
++    "high_risk_countries": "",
++    "high_risk_business": ""
++  },
++  "simulator": {
++    "compute_diameter": false,
++    "transaction_limit": 0,
++    "transaction_interval": 7,
++    "sar_interval": 7,
++    "sar_balance_ratio": 1.0,
++    "numBranches": 1000
++  },
++  "visualizer": {
++    "degree": "deg.png",
++    "wcc": "wcc.png",
++    "alert": "alert.png",
++    "count": "count.png",
++    "clustering": "cc.png",
++    "diameter": "diameter.png"
++  }
++}
+\ No newline at end of file
+diff --git a/conf_10K_earlymule.json b/conf_10K_earlymule.json
+new file mode 100644
+index 0000000..022a9f8
+--- /dev/null
++++ b/conf_10K_earlymule.json
+@@ -0,0 +1,91 @@
++{
++  "general": {
++    "random_seed": 0,
++    "simulation_name": "10K-earlymule",
++    "total_steps": 720,
++    "base_date": "2017-01-01"
++  },
++  "default": {
++    "min_amount": 100,
++    "max_amount": 1000,
++    "min_balance": 50000,
++    "max_balance": 100000,
++    "start_step": -1,
++    "end_step": -1,
++    "start_range": -1,
++    "end_range": -1,
++    "transaction_model": 1,
++    "margin_ratio": 0.1,
++    "bank_id": "default",
++    "cash_in": {
++      "normal_interval": 100,
++      "fraud_interval": 50,
++      "normal_min_amount": 50,
++      "normal_max_amount": 100,
++      "fraud_min_amount": 500,
++      "fraud_max_amount": 1000
++    },
++    "cash_out": {
++      "normal_interval": 10,
++      "fraud_interval": 100,
++      "normal_min_amount": 10,
++      "normal_max_amount": 100,
++      "fraud_min_amount": 1000,
++      "fraud_max_amount": 2000
++    }
++  },
++  "input": {
++    "directory": "paramFiles/10K-earlymule",
++    "schema": "schema.json",
++    "accounts": "accounts.csv",
++    "alert_patterns": "alertPatterns.csv",
++    "normal_models": "normalModels.csv",
++    "degree": "degree.csv",
++    "transaction_type": "transactionType.csv",
++    "is_aggregated_accounts": true
++  },
++  "temporal": {
++    "directory": "tmp",
++    "transactions": "transactions.csv",
++    "accounts": "accounts.csv",
++    "alert_members": "alert_members.csv",
++    "normal_models": "normal_models.csv"
++  },
++  "output": {
++    "directory": "outputs",
++    "accounts": "accounts.csv",
++    "transactions": "transactions.csv",
++    "cash_transactions": "cash_tx.csv",
++    "alert_members": "alert_accounts.csv",
++    "alert_transactions": "alert_transactions.csv",
++    "sar_accounts": "sar_accounts.csv",
++    "party_individuals": "individuals-bulkload.csv",
++    "party_organizations": "organizations-bulkload.csv",
++    "account_mapping": "accountMapping.csv",
++    "resolved_entities": "resolvedentities.csv",
++    "transaction_log": "tx_log.csv",
++    "counter_log": "tx_count.csv",
++    "diameter_log": "diameter.csv"
++  },
++  "graph_generator": {
++    "degree_threshold": 10,
++    "high_risk_countries": "",
++    "high_risk_business": ""
++  },
++  "simulator": {
++    "compute_diameter": false,
++    "transaction_limit": 0,
++    "transaction_interval": 7,
++    "sar_interval": 7,
++    "sar_balance_ratio": 1.0,
++    "numBranches": 1000
++  },
++  "visualizer": {
++    "degree": "deg.png",
++    "wcc": "wcc.png",
++    "alert": "alert.png",
++    "count": "count.png",
++    "clustering": "cc.png",
++    "diameter": "diameter.png"
++  }
++}
+\ No newline at end of file
+diff --git a/conf_80K-earlymule-a100.json b/conf_80K-earlymule-a100.json
+new file mode 100644
+index 0000000..204b580
+--- /dev/null
++++ b/conf_80K-earlymule-a100.json
+@@ -0,0 +1,91 @@
++{
++  "general": {
++    "random_seed": 0,
++    "simulation_name": "80K-earlymule-a100",
++    "total_steps": 720,
++    "base_date": "2017-01-01"
++  },
++  "default": {
++    "min_amount": 100,
++    "max_amount": 1000,
++    "min_balance": 50000,
++    "max_balance": 100000,
++    "start_step": -1,
++    "end_step": -1,
++    "start_range": -1,
++    "end_range": -1,
++    "transaction_model": 1,
++    "margin_ratio": 0.1,
++    "bank_id": "default",
++    "cash_in": {
++      "normal_interval": 100,
++      "fraud_interval": 50,
++      "normal_min_amount": 50,
++      "normal_max_amount": 100,
++      "fraud_min_amount": 500,
++      "fraud_max_amount": 1000
++    },
++    "cash_out": {
++      "normal_interval": 10,
++      "fraud_interval": 100,
++      "normal_min_amount": 10,
++      "normal_max_amount": 100,
++      "fraud_min_amount": 1000,
++      "fraud_max_amount": 2000
++    }
++  },
++  "input": {
++    "directory": "paramFiles/80K-earlymule-a100",
++    "schema": "schema.json",
++    "accounts": "accounts.csv",
++    "alert_patterns": "alertPatterns.csv",
++    "normal_models": "normalModels.csv",
++    "degree": "degree.csv",
++    "transaction_type": "transactionType.csv",
++    "is_aggregated_accounts": true
++  },
++  "temporal": {
++    "directory": "tmp",
++    "transactions": "transactions.csv",
++    "accounts": "accounts.csv",
++    "alert_members": "alert_members.csv",
++    "normal_models": "normal_models.csv"
++  },
++  "output": {
++    "directory": "outputs",
++    "accounts": "accounts.csv",
++    "transactions": "transactions.csv",
++    "cash_transactions": "cash_tx.csv",
++    "alert_members": "alert_accounts.csv",
++    "alert_transactions": "alert_transactions.csv",
++    "sar_accounts": "sar_accounts.csv",
++    "party_individuals": "individuals-bulkload.csv",
++    "party_organizations": "organizations-bulkload.csv",
++    "account_mapping": "accountMapping.csv",
++    "resolved_entities": "resolvedentities.csv",
++    "transaction_log": "tx_log.csv",
++    "counter_log": "tx_count.csv",
++    "diameter_log": "diameter.csv"
++  },
++  "graph_generator": {
++    "degree_threshold": 10,
++    "high_risk_countries": "",
++    "high_risk_business": ""
++  },
++  "simulator": {
++    "compute_diameter": false,
++    "transaction_limit": 0,
++    "transaction_interval": 7,
++    "sar_interval": 7,
++    "sar_balance_ratio": 1.0,
++    "numBranches": 1000
++  },
++  "visualizer": {
++    "degree": "deg.png",
++    "wcc": "wcc.png",
++    "alert": "alert.png",
++    "count": "count.png",
++    "clustering": "cc.png",
++    "diameter": "diameter.png"
++  }
++}
+\ No newline at end of file
+diff --git a/conf_80K-earlymule-a200.json b/conf_80K-earlymule-a200.json
+new file mode 100644
+index 0000000..319d60b
+--- /dev/null
++++ b/conf_80K-earlymule-a200.json
+@@ -0,0 +1,91 @@
++{
++  "general": {
++    "random_seed": 0,
++    "simulation_name": "80K-earlymule-a200",
++    "total_steps": 720,
++    "base_date": "2017-01-01"
++  },
++  "default": {
++    "min_amount": 100,
++    "max_amount": 1000,
++    "min_balance": 50000,
++    "max_balance": 100000,
++    "start_step": -1,
++    "end_step": -1,
++    "start_range": -1,
++    "end_range": -1,
++    "transaction_model": 1,
++    "margin_ratio": 0.1,
++    "bank_id": "default",
++    "cash_in": {
++      "normal_interval": 100,
++      "fraud_interval": 50,
++      "normal_min_amount": 50,
++      "normal_max_amount": 100,
++      "fraud_min_amount": 500,
++      "fraud_max_amount": 1000
++    },
++    "cash_out": {
++      "normal_interval": 10,
++      "fraud_interval": 100,
++      "normal_min_amount": 10,
++      "normal_max_amount": 100,
++      "fraud_min_amount": 1000,
++      "fraud_max_amount": 2000
++    }
++  },
++  "input": {
++    "directory": "paramFiles/80K-earlymule-a200",
++    "schema": "schema.json",
++    "accounts": "accounts.csv",
++    "alert_patterns": "alertPatterns.csv",
++    "normal_models": "normalModels.csv",
++    "degree": "degree.csv",
++    "transaction_type": "transactionType.csv",
++    "is_aggregated_accounts": true
++  },
++  "temporal": {
++    "directory": "tmp",
++    "transactions": "transactions.csv",
++    "accounts": "accounts.csv",
++    "alert_members": "alert_members.csv",
++    "normal_models": "normal_models.csv"
++  },
++  "output": {
++    "directory": "outputs",
++    "accounts": "accounts.csv",
++    "transactions": "transactions.csv",
++    "cash_transactions": "cash_tx.csv",
++    "alert_members": "alert_accounts.csv",
++    "alert_transactions": "alert_transactions.csv",
++    "sar_accounts": "sar_accounts.csv",
++    "party_individuals": "individuals-bulkload.csv",
++    "party_organizations": "organizations-bulkload.csv",
++    "account_mapping": "accountMapping.csv",
++    "resolved_entities": "resolvedentities.csv",
++    "transaction_log": "tx_log.csv",
++    "counter_log": "tx_count.csv",
++    "diameter_log": "diameter.csv"
++  },
++  "graph_generator": {
++    "degree_threshold": 10,
++    "high_risk_countries": "",
++    "high_risk_business": ""
++  },
++  "simulator": {
++    "compute_diameter": false,
++    "transaction_limit": 0,
++    "transaction_interval": 7,
++    "sar_interval": 7,
++    "sar_balance_ratio": 1.0,
++    "numBranches": 1000
++  },
++  "visualizer": {
++    "degree": "deg.png",
++    "wcc": "wcc.png",
++    "alert": "alert.png",
++    "count": "count.png",
++    "clustering": "cc.png",
++    "diameter": "diameter.png"
++  }
++}
+\ No newline at end of file
+diff --git a/paramFiles/10K-earlymule/accounts.csv b/paramFiles/10K-earlymule/accounts.csv
+new file mode 100644
+index 0000000..6901ee4
+--- /dev/null
++++ b/paramFiles/10K-earlymule/accounts.csv
+@@ -0,0 +1,7 @@
++count,min_balance,max_balance,country,business_type,model,bank_id
++2000,50000,100000,US,I,0,bank
++2000,50000,100000,US,I,1,bank
++2000,50000,100000,US,I,2,bank
++2000,50000,100000,US,I,3,bank
++2000,50000,100000,US,I,4,bank
++2043,50000,100000,US,I,5,bank
+diff --git a/paramFiles/10K-earlymule/alertPatterns.csv b/paramFiles/10K-earlymule/alertPatterns.csv
+new file mode 100644
+index 0000000..d3ee73a
+--- /dev/null
++++ b/paramFiles/10K-earlymule/alertPatterns.csv
+@@ -0,0 +1,4 @@
++count,type,schedule_id,min_accounts,max_accounts,min_amount,max_amount,min_period,max_period,bank_id,is_sar
++30,fan_in,2,5,10,100.0,200.0,5,20,bank,True
++30,fan_out,2,5,10,100.0,200.0,5,20,bank,True
++40,cycle,1,5,10,100.0,200.0,5,20,bank,True
+diff --git a/paramFiles/10K-earlymule/conf.json b/paramFiles/10K-earlymule/conf.json
+new file mode 100644
+index 0000000..7bc8590
+--- /dev/null
++++ b/paramFiles/10K-earlymule/conf.json
+@@ -0,0 +1,90 @@
++{
++  "general": {
++    "random_seed": 0,
++    "simulation_name": "10K",
++    "total_steps": 720,
++    "base_date": "2017-01-01"
++  },
++  "default": {
++    "min_amount": 100,
++    "max_amount": 1000,
++    "min_balance": 50000,
++    "max_balance": 100000,
++    "start_step": -1,
++    "end_step": -1,
++    "start_range": -1,
++    "end_range": -1,
++    "transaction_model": 1,
++    "margin_ratio": 0.1,
++    "bank_id": "default",
++
++    "cash_in": {
++      "normal_interval": 100,
++      "fraud_interval": 50,
++      "normal_min_amount": 50,
++      "normal_max_amount": 100,
++      "fraud_min_amount": 500,
++      "fraud_max_amount": 1000
++    },
++    "cash_out": {
++      "normal_interval": 10,
++      "fraud_interval": 100,
++      "normal_min_amount": 10,
++      "normal_max_amount": 100,
++      "fraud_min_amount": 1000,
++      "fraud_max_amount": 2000
++    }
++  },
++  "input": {
++    "directory": "paramFiles/10K",
++    "schema": "schema.json",
++    "accounts": "accounts.csv",
++    "alert_patterns": "alertPatterns.csv",
++    "degree": "degree.csv",
++    "transaction_type": "transactionType.csv",
++    "is_aggregated_accounts": true
++  },
++  "temporal": {
++    "directory": "tmp",
++    "transactions": "transactions.csv",
++    "accounts": "accounts.csv",
++    "alert_members": "alert_members.csv",
++    "normal_models": "normal_models.csv"
++  },
++  "output": {
++    "directory": "outputs",
++    "accounts": "accounts.csv",
++    "transactions": "transactions.csv",
++    "cash_transactions": "cash_tx.csv",
++    "alert_members": "alert_accounts.csv",
++    "alert_transactions": "alert_transactions.csv",
++    "sar_accounts": "sar_accounts.csv",
++    "party_individuals": "individuals-bulkload.csv",
++    "party_organizations": "organizations-bulkload.csv",
++    "account_mapping": "accountMapping.csv",
++    "resolved_entities": "resolvedentities.csv",
++    "transaction_log": "tx_log.csv",
++    "counter_log": "tx_count.csv",
++    "diameter_log": "diameter.csv"
++  },
++  "graph_generator": {
++    "degree_threshold": 10,
++    "high_risk_countries": "",
++    "high_risk_business": ""
++  },
++  "simulator": {
++    "compute_diameter": false,
++    "transaction_limit": 0,
++    "transaction_interval": 7,
++    "numBranches": 1000
++  },
++  "visualizer": {
++    "degree": "deg.png",
++    "wcc": "wcc.png",
++    "alert": "alert.png",
++    "count": "count.png",
++    "clustering": "cc.png",
++    "diameter": "diameter.png"
++  }
++}
++
+diff --git a/paramFiles/10K-earlymule/degree.csv b/paramFiles/10K-earlymule/degree.csv
+new file mode 100644
+index 0000000..b09f8a5
+--- /dev/null
++++ b/paramFiles/10K-earlymule/degree.csv
+@@ -0,0 +1,142 @@
++Count,In-degree,Out-degree
++0,1,2
++1,24,20
++2,113,131
++3,405,349
++4,789,784
++5,1227,1188
++6,1309,1364
++7,1340,1333
++8,1003,1048
++9,769,779
++10,544,560
++11,446,437
++12,305,290
++13,246,251
++14,205,196
++15,165,150
++16,118,122
++17,117,98
++18,78,98
++19,68,88
++20,72,64
++21,66,69
++22,49,56
++23,44,30
++24,34,41
++25,38,32
++26,33,34
++27,28,24
++28,16,28
++29,21,22
++30,25,20
++31,18,14
++32,20,18
++33,14,11
++34,12,16
++35,9,14
++36,16,13
++37,15,9
++38,8,13
++39,10,9
++40,9,4
++41,5,5
++42,12,5
++43,4,3
++44,2,7
++45,6,3
++46,4,5
++47,7,10
++48,5,7
++49,4,5
++50,4,4
++51,1,2
++52,5,2
++53,4,7
++54,4,3
++55,7,3
++56,1,3
++57,3,4
++58,5,5
++59,4,3
++60,4,4
++61,2,2
++62,3,0
++63,0,2
++64,0,3
++65,0,1
++66,2,2
++67,5,2
++68,1,0
++69,2,1
++70,0,5
++71,1,1
++72,1,1
++75,5,1
++76,3,1
++77,0,3
++78,1,4
++79,0,1
++80,2,1
++82,3,1
++83,1,2
++84,1,0
++85,2,1
++87,1,2
++88,1,0
++89,1,0
++90,0,1
++92,0,1
++93,0,1
++94,0,3
++95,2,0
++96,3,2
++97,1,1
++98,1,1
++99,2,2
++101,0,2
++103,1,1
++104,3,1
++105,2,1
++106,2,2
++108,1,1
++109,1,0
++110,0,1
++113,1,0
++114,0,1
++115,0,1
++117,1,0
++121,1,0
++123,2,1
++124,1,0
++126,0,1
++127,0,2
++128,1,1
++132,0,1
++133,0,1
++135,1,0
++136,1,0
++138,0,1
++139,1,0
++151,0,1
++158,1,0
++163,2,0
++165,0,1
++168,0,1
++173,0,1
++174,1,0
++175,0,1
++176,1,2
++177,1,0
++179,1,0
++191,1,0
++193,0,2
++197,1,0
++208,1,0
++209,0,1
++247,0,1
++250,1,0
++304,1,0
++305,0,1
++331,1,0
++337,0,1
+diff --git a/paramFiles/10K-earlymule/normalModels.csv b/paramFiles/10K-earlymule/normalModels.csv
+new file mode 100644
+index 0000000..7b8dbdc
+--- /dev/null
++++ b/paramFiles/10K-earlymule/normalModels.csv
+@@ -0,0 +1,7 @@
++count,type,schedule_id,min_accounts,max_accounts,min_period,max_period,bank_id
++500,single,2,1,1,5,20,bank
++500,fan_out,2,5,20,5,20,bank
++500,fan_in,2,5,20,5,20,bank
++500,forward,2,3,3,5,20,bank
++500,mutual,2,2,2,5,20,bank
++500,periodical,2,2,2,5,20,bank
+diff --git a/paramFiles/10K-earlymule/schema.json b/paramFiles/10K-earlymule/schema.json
+new file mode 100644
+index 0000000..6b17fc0
+--- /dev/null
++++ b/paramFiles/10K-earlymule/schema.json
+@@ -0,0 +1,305 @@
++{
++  "account": [
++    {
++      "name": "acct_id",
++      "valueType": "string",
++      "dataType": "account_id"
++    },
++    {
++      "name": "dsply_nm",
++      "valueType": "string",
++      "dataType": "account_name"
++    }, 
++    {
++      "name": "type",
++      "valueType": "string",
++      "dataType": "account_type",
++      "defaultValue": "SAV"
++    },
++    {
++      "name": "acct_stat",
++      "valueType": "string",
++      "defaultValue": "A"
++    },
++    {
++      "name": "acct_rptng_crncy",
++      "valueType": "string",
++      "defaultValue": "USD"
++    },
++    {
++      "name": "prior_sar_count",
++      "valueType": "boolean",
++      "dataType": "sar_flag"
++    },
++    {
++      "name": "branch_id",
++      "valueType": "int",
++      "defaultValue": 1
++    },
++    {
++      "name": "open_dt",
++      "valueType": "date",
++      "dataType": "start_time",
++      "defaultValue": 0
++    },
++    {
++      "name": "close_dt",
++      "valueType": "date",
++      "dataType": "end_time",
++      "defaultValue": 1000000
++    },
++    {
++      "name": "initial_deposit",
++      "valueType": "float",
++      "dataType": "initial_balance"
++    },
++    {
++      "name": "tx_behavior_id",
++      "valueType": "int",
++      "dataType": "model_id"
++    },
++    {
++      "name": "bank_id",
++      "valueType": "int",
++      "dataType": "bank_id"
++    },
++    {
++      "name": "first_name",
++      "valueType": "string"
++    },
++    {
++      "name": "last_name",
++      "valueType": "string"
++    },
++    {
++      "name": "street_addr",
++      "valueType": "string"
++    },
++    {
++      "name": "city",
++      "valueType": "string"
++    },
++    {
++      "name": "state",
++      "valueType": "string"
++    },
++    {
++      "name": "country",
++      "valueType": "string",
++      "defaultValue": "US",
++      "dataType": "country"
++    },
++    {
++      "name": "zip",
++      "valueType": "string"
++    },
++    {
++      "name": "gender",
++      "valueType": "string"
++    },
++    {
++      "name": "birth_date",
++      "valueType": "date"
++    },
++    {
++      "name": "ssn",
++      "valueType": "string"
++    },
++    {
++      "name": "lon",
++      "valueType": "float"
++    },
++    {
++      "name": "lat",
++      "valueType": "float"
++    }
++  ], 
++  "transaction": [
++    {
++      "name": "tran_id",
++      "valueType": "string",
++      "dataType": "transaction_id"
++    },
++    {
++      "name": "orig_acct",
++      "valueType": "string",
++      "dataType": "orig_id"
++    },
++    {
++      "name": "bene_acct",
++      "valueType": "string",
++      "dataType": "dest_id"
++    },
++    {
++      "name": "tx_type",
++      "valueType": "string",
++      "dataType": "transaction_type"
++    },
++    {
++      "name": "base_amt",
++      "valueType": "string",
++      "dataType": "amount"
++    },
++    {
++      "name": "tran_timestamp",
++      "valueType": "date",
++      "dataType": "timestamp"
++    },
++    {
++      "name": "is_sar",
++      "valueType": "boolean",
++      "dataType": "sar_flag"
++    },
++    {
++      "name": "alert_id",
++      "valueType": "string",
++      "dataType": "alert_id"
++    }
++  ],
++  "alert_tx": [
++    {
++      "name": "alert_id",
++      "valueType": "string",
++      "dataType": "alert_id"
++    },
++    {
++      "name": "alert_type",
++      "valueType": "string",
++      "dataType": "alert_type"
++    },
++    {
++      "name": "is_sar",
++      "valueType": "boolean",
++      "dataType": "sar_flag"
++    },
++    {
++      "name": "tran_id",
++      "valueType": "string",
++      "dataType": "transaction_id"
++    },
++    {
++      "name": "orig_acct",
++      "valueType": "string",
++      "dataType": "orig_id"
++    },
++    {
++      "name": "bene_acct",
++      "valueType": "string",
++      "dataType": "dest_id"
++    },
++    {
++      "name": "tx_type",
++      "valueType": "string",
++      "dataType": "transaction_type"
++    },
++    {
++      "name": "base_amt",
++      "valueType": "float",
++      "dataType": "amount"
++    },
++    {
++      "name": "tran_timestamp",
++      "valueType": "date",
++      "dataType": "timestamp"
++    }
++  ],
++  "alert_member": [
++    {"name": "alert_id", "dataType": "alert_id"},
++    {"name": "alert_type", "dataType": "alert_type"},
++    {"name": "acct_id", "dataType": "account_id"},
++    {"name": "acct_name", "dataType": "account_name"},
++    {"name": "is_sar", "dataType": "sar_flag"},
++    {"name": "model_id", "dataType": "model_id"},
++    {"name": "start", "dataType": "date", "defaultValue": 0},
++    {"name": "end", "dataType": "date", "defaultValue": 1000000},
++    {"name": "schedule_id", "dataType": "schedule_id"},
++    {"name": "bank_id", "dataType": "bank_id"}
++  ],
++  "party_individual": [
++    {"name": "birthPlaceCountry", "valueType": "string", "defaultValue": "US"},
++    {"name": "countryofResidency", "valueType": "string", "defaultValue": "US"},
++    {"name": "deathTime"},
++    {"name": "firstName"},
++    {"name": "isActive", "valueType": "int", "defaultValue": 1},
++    {"name": "lastName"},
++    {"name": "legalName"},
++    {"name": "listedCompany"},
++    {"name": "maritalStatus"},
++    {"name": "middleName"},
++    {"name": "name"},
++    {"name": "nameAlias"},
++    {"name": "nationality", "valueType": "string", "defaultValue": "US"},
++    {"name": "occupation"},
++    {"name": "organizationSymbol"},
++    {"name": "partyId", "valueType": "int", "dataType": "party_id"},
++    {"name": "partyType", "valueType": "string", "defaultValue": "Individual"},
++    {"name": "sourceOfIncome"},
++    {"name": "title"},
++    {"name": "website"},
++    {"name": "gender"},
++    {"name": "homePhone"},
++    {"name": "alternatePhone"},
++    {"name": "cellPhone"},
++    {"name": "primaryPhone"},
++    {"name": "workPhone"},
++    {"name": "alternateEmail"},
++    {"name": "companyEmail"},
++    {"name": "personalEmail"},
++    {"name": "workEmail"},
++    {"name": "isIndividual"}
++  ],
++  "party_organization": [
++    {"name": "birthPlaceCountry", "valueType": "string", "defaultValue": "US"},
++    {"name": "countryOfIncorporation", "valueType": "string", "defaultValue": "US"},
++    {"name": "countryOfResidency", "valueType": "string", "defaultValue": "US"},
++    {"name": "deathTime"},
++    {"name": "firstName"},
++    {"name": "isActive"},
++    {"name": "lastName"},
++    {"name": "legalName"},
++    {"name": "listedCompany"},
++    {"name": "maritalStatus"},
++    {"name": "middleName"},
++    {"name": "name"},
++    {"name": "nameAlias"},
++    {"name": "nationality", "valueType": "string", "defaultValue": "US"},
++    {"name": "occupation"},
++    {"name": "organizationSymbol"},
++    {"name": "partyId", "valueType": "int", "dataType": "party_id"},
++    {"name": "partyType", "valueType": "string", "defaultValue": "Organization"},
++    {"name": "sourceOfIncome"},
++    {"name": "title"},
++    {"name": "website"},
++    {"name": "gender"},
++    {"name": "homePhone"},
++    {"name": "alternatePhone"},
++    {"name": "cellPhone"},
++    {"name": "primaryPhone"},
++    {"name": "workPhone"},
++    {"name": "alternateEmail"},
++    {"name": "companyEmail"},
++    {"name": "personalEmail"},
++    {"name": "workEmail"},
++    {"name": "isIndividual", "valueType": "boolean", "defaultValue": false}
++  ],
++  "account_mapping": [
++    {"name": "cust_acct_mapping_id", "valueType": "int", "dataType": "mapping_id"},
++    {"name": "acct_id", "valueType": "int", "dataType": "account_id"},
++    {"name": "cust_id", "valueType": "int", "dataType": "party_id"},
++    {"name": "cust_acct_role", "valueType": "string", "defaultValue": "Primary"},
++    {"name": "src_sys", "valueType": "string", "defaultValue": "1"},
++    {"name": "data_dump_dt", "valueType": "date", "defaultValue": 1}
++  ],
++  "resolved_entities": [
++    {"name": "entityrefid", "valueType": "int", "dataType": "ref_id"},
++    {"name": "entityreference"},
++    {"name": "partyid1", "valueType": "int", "dataType": "first_id"},
++    {"name": "partyid2", "valueType": "int", "dataType": "second_id"},
++    {"name": "partyid1entitytype"},
++    {"name": "partyid2entitytype"},
++    {"name": "score", "valueType": "int", "defaultValue": 180},
++    {"name": "reason", "defaultValue": "same"}
++  ]
++}
++
++
+diff --git a/paramFiles/10K-earlymule/transactionType.csv b/paramFiles/10K-earlymule/transactionType.csv
+new file mode 100644
+index 0000000..79b82f5
+--- /dev/null
++++ b/paramFiles/10K-earlymule/transactionType.csv
+@@ -0,0 +1,2 @@
++Type,Frequency
++TRANSFER,1
+\ No newline at end of file
+diff --git a/paramFiles/80K-earlymule-a100/accounts.csv b/paramFiles/80K-earlymule-a100/accounts.csv
+new file mode 100644
+index 0000000..6e3cf2c
+--- /dev/null
++++ b/paramFiles/80K-earlymule-a100/accounts.csv
+@@ -0,0 +1,7 @@
++count,min_balance,max_balance,country,business_type,model,bank_id
++16000,50000,100000,US,I,0,bank
++16000,50000,100000,US,I,1,bank
++16000,50000,100000,US,I,2,bank
++16000,50000,100000,US,I,3,bank
++16000,50000,100000,US,I,4,bank
++16344,50000,100000,US,I,5,bank
+diff --git a/paramFiles/80K-earlymule-a100/alertPatterns.csv b/paramFiles/80K-earlymule-a100/alertPatterns.csv
+new file mode 100644
+index 0000000..d3ee73a
+--- /dev/null
++++ b/paramFiles/80K-earlymule-a100/alertPatterns.csv
+@@ -0,0 +1,4 @@
++count,type,schedule_id,min_accounts,max_accounts,min_amount,max_amount,min_period,max_period,bank_id,is_sar
++30,fan_in,2,5,10,100.0,200.0,5,20,bank,True
++30,fan_out,2,5,10,100.0,200.0,5,20,bank,True
++40,cycle,1,5,10,100.0,200.0,5,20,bank,True
+diff --git a/paramFiles/80K-earlymule-a100/conf.json b/paramFiles/80K-earlymule-a100/conf.json
+new file mode 100644
+index 0000000..7bc8590
+--- /dev/null
++++ b/paramFiles/80K-earlymule-a100/conf.json
+@@ -0,0 +1,90 @@
++{
++  "general": {
++    "random_seed": 0,
++    "simulation_name": "10K",
++    "total_steps": 720,
++    "base_date": "2017-01-01"
++  },
++  "default": {
++    "min_amount": 100,
++    "max_amount": 1000,
++    "min_balance": 50000,
++    "max_balance": 100000,
++    "start_step": -1,
++    "end_step": -1,
++    "start_range": -1,
++    "end_range": -1,
++    "transaction_model": 1,
++    "margin_ratio": 0.1,
++    "bank_id": "default",
++
++    "cash_in": {
++      "normal_interval": 100,
++      "fraud_interval": 50,
++      "normal_min_amount": 50,
++      "normal_max_amount": 100,
++      "fraud_min_amount": 500,
++      "fraud_max_amount": 1000
++    },
++    "cash_out": {
++      "normal_interval": 10,
++      "fraud_interval": 100,
++      "normal_min_amount": 10,
++      "normal_max_amount": 100,
++      "fraud_min_amount": 1000,
++      "fraud_max_amount": 2000
++    }
++  },
++  "input": {
++    "directory": "paramFiles/10K",
++    "schema": "schema.json",
++    "accounts": "accounts.csv",
++    "alert_patterns": "alertPatterns.csv",
++    "degree": "degree.csv",
++    "transaction_type": "transactionType.csv",
++    "is_aggregated_accounts": true
++  },
++  "temporal": {
++    "directory": "tmp",
++    "transactions": "transactions.csv",
++    "accounts": "accounts.csv",
++    "alert_members": "alert_members.csv",
++    "normal_models": "normal_models.csv"
++  },
++  "output": {
++    "directory": "outputs",
++    "accounts": "accounts.csv",
++    "transactions": "transactions.csv",
++    "cash_transactions": "cash_tx.csv",
++    "alert_members": "alert_accounts.csv",
++    "alert_transactions": "alert_transactions.csv",
++    "sar_accounts": "sar_accounts.csv",
++    "party_individuals": "individuals-bulkload.csv",
++    "party_organizations": "organizations-bulkload.csv",
++    "account_mapping": "accountMapping.csv",
++    "resolved_entities": "resolvedentities.csv",
++    "transaction_log": "tx_log.csv",
++    "counter_log": "tx_count.csv",
++    "diameter_log": "diameter.csv"
++  },
++  "graph_generator": {
++    "degree_threshold": 10,
++    "high_risk_countries": "",
++    "high_risk_business": ""
++  },
++  "simulator": {
++    "compute_diameter": false,
++    "transaction_limit": 0,
++    "transaction_interval": 7,
++    "numBranches": 1000
++  },
++  "visualizer": {
++    "degree": "deg.png",
++    "wcc": "wcc.png",
++    "alert": "alert.png",
++    "count": "count.png",
++    "clustering": "cc.png",
++    "diameter": "diameter.png"
++  }
++}
++
+diff --git a/paramFiles/80K-earlymule-a100/degree.csv b/paramFiles/80K-earlymule-a100/degree.csv
+new file mode 100644
+index 0000000..b09f8a5
+--- /dev/null
++++ b/paramFiles/80K-earlymule-a100/degree.csv
+@@ -0,0 +1,142 @@
++Count,In-degree,Out-degree
++0,1,2
++1,24,20
++2,113,131
++3,405,349
++4,789,784
++5,1227,1188
++6,1309,1364
++7,1340,1333
++8,1003,1048
++9,769,779
++10,544,560
++11,446,437
++12,305,290
++13,246,251
++14,205,196
++15,165,150
++16,118,122
++17,117,98
++18,78,98
++19,68,88
++20,72,64
++21,66,69
++22,49,56
++23,44,30
++24,34,41
++25,38,32
++26,33,34
++27,28,24
++28,16,28
++29,21,22
++30,25,20
++31,18,14
++32,20,18
++33,14,11
++34,12,16
++35,9,14
++36,16,13
++37,15,9
++38,8,13
++39,10,9
++40,9,4
++41,5,5
++42,12,5
++43,4,3
++44,2,7
++45,6,3
++46,4,5
++47,7,10
++48,5,7
++49,4,5
++50,4,4
++51,1,2
++52,5,2
++53,4,7
++54,4,3
++55,7,3
++56,1,3
++57,3,4
++58,5,5
++59,4,3
++60,4,4
++61,2,2
++62,3,0
++63,0,2
++64,0,3
++65,0,1
++66,2,2
++67,5,2
++68,1,0
++69,2,1
++70,0,5
++71,1,1
++72,1,1
++75,5,1
++76,3,1
++77,0,3
++78,1,4
++79,0,1
++80,2,1
++82,3,1
++83,1,2
++84,1,0
++85,2,1
++87,1,2
++88,1,0
++89,1,0
++90,0,1
++92,0,1
++93,0,1
++94,0,3
++95,2,0
++96,3,2
++97,1,1
++98,1,1
++99,2,2
++101,0,2
++103,1,1
++104,3,1
++105,2,1
++106,2,2
++108,1,1
++109,1,0
++110,0,1
++113,1,0
++114,0,1
++115,0,1
++117,1,0
++121,1,0
++123,2,1
++124,1,0
++126,0,1
++127,0,2
++128,1,1
++132,0,1
++133,0,1
++135,1,0
++136,1,0
++138,0,1
++139,1,0
++151,0,1
++158,1,0
++163,2,0
++165,0,1
++168,0,1
++173,0,1
++174,1,0
++175,0,1
++176,1,2
++177,1,0
++179,1,0
++191,1,0
++193,0,2
++197,1,0
++208,1,0
++209,0,1
++247,0,1
++250,1,0
++304,1,0
++305,0,1
++331,1,0
++337,0,1
+diff --git a/paramFiles/80K-earlymule-a100/normalModels.csv b/paramFiles/80K-earlymule-a100/normalModels.csv
+new file mode 100644
+index 0000000..7300fcf
+--- /dev/null
++++ b/paramFiles/80K-earlymule-a100/normalModels.csv
+@@ -0,0 +1,7 @@
++count,type,schedule_id,min_accounts,max_accounts,min_period,max_period,bank_id
++4000,single,2,1,1,5,20,bank
++4000,fan_out,2,5,20,5,20,bank
++4000,fan_in,2,5,20,5,20,bank
++4000,forward,2,3,3,5,20,bank
++4000,mutual,2,2,2,5,20,bank
++4000,periodical,2,2,2,5,20,bank
+diff --git a/paramFiles/80K-earlymule-a100/schema.json b/paramFiles/80K-earlymule-a100/schema.json
+new file mode 100644
+index 0000000..6b17fc0
+--- /dev/null
++++ b/paramFiles/80K-earlymule-a100/schema.json
+@@ -0,0 +1,305 @@
++{
++  "account": [
++    {
++      "name": "acct_id",
++      "valueType": "string",
++      "dataType": "account_id"
++    },
++    {
++      "name": "dsply_nm",
++      "valueType": "string",
++      "dataType": "account_name"
++    }, 
++    {
++      "name": "type",
++      "valueType": "string",
++      "dataType": "account_type",
++      "defaultValue": "SAV"
++    },
++    {
++      "name": "acct_stat",
++      "valueType": "string",
++      "defaultValue": "A"
++    },
++    {
++      "name": "acct_rptng_crncy",
++      "valueType": "string",
++      "defaultValue": "USD"
++    },
++    {
++      "name": "prior_sar_count",
++      "valueType": "boolean",
++      "dataType": "sar_flag"
++    },
++    {
++      "name": "branch_id",
++      "valueType": "int",
++      "defaultValue": 1
++    },
++    {
++      "name": "open_dt",
++      "valueType": "date",
++      "dataType": "start_time",
++      "defaultValue": 0
++    },
++    {
++      "name": "close_dt",
++      "valueType": "date",
++      "dataType": "end_time",
++      "defaultValue": 1000000
++    },
++    {
++      "name": "initial_deposit",
++      "valueType": "float",
++      "dataType": "initial_balance"
++    },
++    {
++      "name": "tx_behavior_id",
++      "valueType": "int",
++      "dataType": "model_id"
++    },
++    {
++      "name": "bank_id",
++      "valueType": "int",
++      "dataType": "bank_id"
++    },
++    {
++      "name": "first_name",
++      "valueType": "string"
++    },
++    {
++      "name": "last_name",
++      "valueType": "string"
++    },
++    {
++      "name": "street_addr",
++      "valueType": "string"
++    },
++    {
++      "name": "city",
++      "valueType": "string"
++    },
++    {
++      "name": "state",
++      "valueType": "string"
++    },
++    {
++      "name": "country",
++      "valueType": "string",
++      "defaultValue": "US",
++      "dataType": "country"
++    },
++    {
++      "name": "zip",
++      "valueType": "string"
++    },
++    {
++      "name": "gender",
++      "valueType": "string"
++    },
++    {
++      "name": "birth_date",
++      "valueType": "date"
++    },
++    {
++      "name": "ssn",
++      "valueType": "string"
++    },
++    {
++      "name": "lon",
++      "valueType": "float"
++    },
++    {
++      "name": "lat",
++      "valueType": "float"
++    }
++  ], 
++  "transaction": [
++    {
++      "name": "tran_id",
++      "valueType": "string",
++      "dataType": "transaction_id"
++    },
++    {
++      "name": "orig_acct",
++      "valueType": "string",
++      "dataType": "orig_id"
++    },
++    {
++      "name": "bene_acct",
++      "valueType": "string",
++      "dataType": "dest_id"
++    },
++    {
++      "name": "tx_type",
++      "valueType": "string",
++      "dataType": "transaction_type"
++    },
++    {
++      "name": "base_amt",
++      "valueType": "string",
++      "dataType": "amount"
++    },
++    {
++      "name": "tran_timestamp",
++      "valueType": "date",
++      "dataType": "timestamp"
++    },
++    {
++      "name": "is_sar",
++      "valueType": "boolean",
++      "dataType": "sar_flag"
++    },
++    {
++      "name": "alert_id",
++      "valueType": "string",
++      "dataType": "alert_id"
++    }
++  ],
++  "alert_tx": [
++    {
++      "name": "alert_id",
++      "valueType": "string",
++      "dataType": "alert_id"
++    },
++    {
++      "name": "alert_type",
++      "valueType": "string",
++      "dataType": "alert_type"
++    },
++    {
++      "name": "is_sar",
++      "valueType": "boolean",
++      "dataType": "sar_flag"
++    },
++    {
++      "name": "tran_id",
++      "valueType": "string",
++      "dataType": "transaction_id"
++    },
++    {
++      "name": "orig_acct",
++      "valueType": "string",
++      "dataType": "orig_id"
++    },
++    {
++      "name": "bene_acct",
++      "valueType": "string",
++      "dataType": "dest_id"
++    },
++    {
++      "name": "tx_type",
++      "valueType": "string",
++      "dataType": "transaction_type"
++    },
++    {
++      "name": "base_amt",
++      "valueType": "float",
++      "dataType": "amount"
++    },
++    {
++      "name": "tran_timestamp",
++      "valueType": "date",
++      "dataType": "timestamp"
++    }
++  ],
++  "alert_member": [
++    {"name": "alert_id", "dataType": "alert_id"},
++    {"name": "alert_type", "dataType": "alert_type"},
++    {"name": "acct_id", "dataType": "account_id"},
++    {"name": "acct_name", "dataType": "account_name"},
++    {"name": "is_sar", "dataType": "sar_flag"},
++    {"name": "model_id", "dataType": "model_id"},
++    {"name": "start", "dataType": "date", "defaultValue": 0},
++    {"name": "end", "dataType": "date", "defaultValue": 1000000},
++    {"name": "schedule_id", "dataType": "schedule_id"},
++    {"name": "bank_id", "dataType": "bank_id"}
++  ],
++  "party_individual": [
++    {"name": "birthPlaceCountry", "valueType": "string", "defaultValue": "US"},
++    {"name": "countryofResidency", "valueType": "string", "defaultValue": "US"},
++    {"name": "deathTime"},
++    {"name": "firstName"},
++    {"name": "isActive", "valueType": "int", "defaultValue": 1},
++    {"name": "lastName"},
++    {"name": "legalName"},
++    {"name": "listedCompany"},
++    {"name": "maritalStatus"},
++    {"name": "middleName"},
++    {"name": "name"},
++    {"name": "nameAlias"},
++    {"name": "nationality", "valueType": "string", "defaultValue": "US"},
++    {"name": "occupation"},
++    {"name": "organizationSymbol"},
++    {"name": "partyId", "valueType": "int", "dataType": "party_id"},
++    {"name": "partyType", "valueType": "string", "defaultValue": "Individual"},
++    {"name": "sourceOfIncome"},
++    {"name": "title"},
++    {"name": "website"},
++    {"name": "gender"},
++    {"name": "homePhone"},
++    {"name": "alternatePhone"},
++    {"name": "cellPhone"},
++    {"name": "primaryPhone"},
++    {"name": "workPhone"},
++    {"name": "alternateEmail"},
++    {"name": "companyEmail"},
++    {"name": "personalEmail"},
++    {"name": "workEmail"},
++    {"name": "isIndividual"}
++  ],
++  "party_organization": [
++    {"name": "birthPlaceCountry", "valueType": "string", "defaultValue": "US"},
++    {"name": "countryOfIncorporation", "valueType": "string", "defaultValue": "US"},
++    {"name": "countryOfResidency", "valueType": "string", "defaultValue": "US"},
++    {"name": "deathTime"},
++    {"name": "firstName"},
++    {"name": "isActive"},
++    {"name": "lastName"},
++    {"name": "legalName"},
++    {"name": "listedCompany"},
++    {"name": "maritalStatus"},
++    {"name": "middleName"},
++    {"name": "name"},
++    {"name": "nameAlias"},
++    {"name": "nationality", "valueType": "string", "defaultValue": "US"},
++    {"name": "occupation"},
++    {"name": "organizationSymbol"},
++    {"name": "partyId", "valueType": "int", "dataType": "party_id"},
++    {"name": "partyType", "valueType": "string", "defaultValue": "Organization"},
++    {"name": "sourceOfIncome"},
++    {"name": "title"},
++    {"name": "website"},
++    {"name": "gender"},
++    {"name": "homePhone"},
++    {"name": "alternatePhone"},
++    {"name": "cellPhone"},
++    {"name": "primaryPhone"},
++    {"name": "workPhone"},
++    {"name": "alternateEmail"},
++    {"name": "companyEmail"},
++    {"name": "personalEmail"},
++    {"name": "workEmail"},
++    {"name": "isIndividual", "valueType": "boolean", "defaultValue": false}
++  ],
++  "account_mapping": [
++    {"name": "cust_acct_mapping_id", "valueType": "int", "dataType": "mapping_id"},
++    {"name": "acct_id", "valueType": "int", "dataType": "account_id"},
++    {"name": "cust_id", "valueType": "int", "dataType": "party_id"},
++    {"name": "cust_acct_role", "valueType": "string", "defaultValue": "Primary"},
++    {"name": "src_sys", "valueType": "string", "defaultValue": "1"},
++    {"name": "data_dump_dt", "valueType": "date", "defaultValue": 1}
++  ],
++  "resolved_entities": [
++    {"name": "entityrefid", "valueType": "int", "dataType": "ref_id"},
++    {"name": "entityreference"},
++    {"name": "partyid1", "valueType": "int", "dataType": "first_id"},
++    {"name": "partyid2", "valueType": "int", "dataType": "second_id"},
++    {"name": "partyid1entitytype"},
++    {"name": "partyid2entitytype"},
++    {"name": "score", "valueType": "int", "defaultValue": 180},
++    {"name": "reason", "defaultValue": "same"}
++  ]
++}
++
++
+diff --git a/paramFiles/80K-earlymule-a100/transactionType.csv b/paramFiles/80K-earlymule-a100/transactionType.csv
+new file mode 100644
+index 0000000..79b82f5
+--- /dev/null
++++ b/paramFiles/80K-earlymule-a100/transactionType.csv
+@@ -0,0 +1,2 @@
++Type,Frequency
++TRANSFER,1
+\ No newline at end of file
+diff --git a/paramFiles/80K-earlymule-a200/accounts.csv b/paramFiles/80K-earlymule-a200/accounts.csv
+new file mode 100644
+index 0000000..6e3cf2c
+--- /dev/null
++++ b/paramFiles/80K-earlymule-a200/accounts.csv
+@@ -0,0 +1,7 @@
++count,min_balance,max_balance,country,business_type,model,bank_id
++16000,50000,100000,US,I,0,bank
++16000,50000,100000,US,I,1,bank
++16000,50000,100000,US,I,2,bank
++16000,50000,100000,US,I,3,bank
++16000,50000,100000,US,I,4,bank
++16344,50000,100000,US,I,5,bank
+diff --git a/paramFiles/80K-earlymule-a200/alertPatterns.csv b/paramFiles/80K-earlymule-a200/alertPatterns.csv
+new file mode 100644
+index 0000000..c647e02
+--- /dev/null
++++ b/paramFiles/80K-earlymule-a200/alertPatterns.csv
+@@ -0,0 +1,4 @@
++count,type,schedule_id,min_accounts,max_accounts,min_amount,max_amount,min_period,max_period,bank_id,is_sar
++60,fan_in,2,5,10,100.0,200.0,5,20,bank,True
++60,fan_out,2,5,10,100.0,200.0,5,20,bank,True
++80,cycle,1,5,10,100.0,200.0,5,20,bank,True
+diff --git a/paramFiles/80K-earlymule-a200/conf.json b/paramFiles/80K-earlymule-a200/conf.json
+new file mode 100644
+index 0000000..7bc8590
+--- /dev/null
++++ b/paramFiles/80K-earlymule-a200/conf.json
+@@ -0,0 +1,90 @@
++{
++  "general": {
++    "random_seed": 0,
++    "simulation_name": "10K",
++    "total_steps": 720,
++    "base_date": "2017-01-01"
++  },
++  "default": {
++    "min_amount": 100,
++    "max_amount": 1000,
++    "min_balance": 50000,
++    "max_balance": 100000,
++    "start_step": -1,
++    "end_step": -1,
++    "start_range": -1,
++    "end_range": -1,
++    "transaction_model": 1,
++    "margin_ratio": 0.1,
++    "bank_id": "default",
++
++    "cash_in": {
++      "normal_interval": 100,
++      "fraud_interval": 50,
++      "normal_min_amount": 50,
++      "normal_max_amount": 100,
++      "fraud_min_amount": 500,
++      "fraud_max_amount": 1000
++    },
++    "cash_out": {
++      "normal_interval": 10,
++      "fraud_interval": 100,
++      "normal_min_amount": 10,
++      "normal_max_amount": 100,
++      "fraud_min_amount": 1000,
++      "fraud_max_amount": 2000
++    }
++  },
++  "input": {
++    "directory": "paramFiles/10K",
++    "schema": "schema.json",
++    "accounts": "accounts.csv",
++    "alert_patterns": "alertPatterns.csv",
++    "degree": "degree.csv",
++    "transaction_type": "transactionType.csv",
++    "is_aggregated_accounts": true
++  },
++  "temporal": {
++    "directory": "tmp",
++    "transactions": "transactions.csv",
++    "accounts": "accounts.csv",
++    "alert_members": "alert_members.csv",
++    "normal_models": "normal_models.csv"
++  },
++  "output": {
++    "directory": "outputs",
++    "accounts": "accounts.csv",
++    "transactions": "transactions.csv",
++    "cash_transactions": "cash_tx.csv",
++    "alert_members": "alert_accounts.csv",
++    "alert_transactions": "alert_transactions.csv",
++    "sar_accounts": "sar_accounts.csv",
++    "party_individuals": "individuals-bulkload.csv",
++    "party_organizations": "organizations-bulkload.csv",
++    "account_mapping": "accountMapping.csv",
++    "resolved_entities": "resolvedentities.csv",
++    "transaction_log": "tx_log.csv",
++    "counter_log": "tx_count.csv",
++    "diameter_log": "diameter.csv"
++  },
++  "graph_generator": {
++    "degree_threshold": 10,
++    "high_risk_countries": "",
++    "high_risk_business": ""
++  },
++  "simulator": {
++    "compute_diameter": false,
++    "transaction_limit": 0,
++    "transaction_interval": 7,
++    "numBranches": 1000
++  },
++  "visualizer": {
++    "degree": "deg.png",
++    "wcc": "wcc.png",
++    "alert": "alert.png",
++    "count": "count.png",
++    "clustering": "cc.png",
++    "diameter": "diameter.png"
++  }
++}
++
+diff --git a/paramFiles/80K-earlymule-a200/degree.csv b/paramFiles/80K-earlymule-a200/degree.csv
+new file mode 100644
+index 0000000..b09f8a5
+--- /dev/null
++++ b/paramFiles/80K-earlymule-a200/degree.csv
+@@ -0,0 +1,142 @@
++Count,In-degree,Out-degree
++0,1,2
++1,24,20
++2,113,131
++3,405,349
++4,789,784
++5,1227,1188
++6,1309,1364
++7,1340,1333
++8,1003,1048
++9,769,779
++10,544,560
++11,446,437
++12,305,290
++13,246,251
++14,205,196
++15,165,150
++16,118,122
++17,117,98
++18,78,98
++19,68,88
++20,72,64
++21,66,69
++22,49,56
++23,44,30
++24,34,41
++25,38,32
++26,33,34
++27,28,24
++28,16,28
++29,21,22
++30,25,20
++31,18,14
++32,20,18
++33,14,11
++34,12,16
++35,9,14
++36,16,13
++37,15,9
++38,8,13
++39,10,9
++40,9,4
++41,5,5
++42,12,5
++43,4,3
++44,2,7
++45,6,3
++46,4,5
++47,7,10
++48,5,7
++49,4,5
++50,4,4
++51,1,2
++52,5,2
++53,4,7
++54,4,3
++55,7,3
++56,1,3
++57,3,4
++58,5,5
++59,4,3
++60,4,4
++61,2,2
++62,3,0
++63,0,2
++64,0,3
++65,0,1
++66,2,2
++67,5,2
++68,1,0
++69,2,1
++70,0,5
++71,1,1
++72,1,1
++75,5,1
++76,3,1
++77,0,3
++78,1,4
++79,0,1
++80,2,1
++82,3,1
++83,1,2
++84,1,0
++85,2,1
++87,1,2
++88,1,0
++89,1,0
++90,0,1
++92,0,1
++93,0,1
++94,0,3
++95,2,0
++96,3,2
++97,1,1
++98,1,1
++99,2,2
++101,0,2
++103,1,1
++104,3,1
++105,2,1
++106,2,2
++108,1,1
++109,1,0
++110,0,1
++113,1,0
++114,0,1
++115,0,1
++117,1,0
++121,1,0
++123,2,1
++124,1,0
++126,0,1
++127,0,2
++128,1,1
++132,0,1
++133,0,1
++135,1,0
++136,1,0
++138,0,1
++139,1,0
++151,0,1
++158,1,0
++163,2,0
++165,0,1
++168,0,1
++173,0,1
++174,1,0
++175,0,1
++176,1,2
++177,1,0
++179,1,0
++191,1,0
++193,0,2
++197,1,0
++208,1,0
++209,0,1
++247,0,1
++250,1,0
++304,1,0
++305,0,1
++331,1,0
++337,0,1
+diff --git a/paramFiles/80K-earlymule-a200/normalModels.csv b/paramFiles/80K-earlymule-a200/normalModels.csv
+new file mode 100644
+index 0000000..7300fcf
+--- /dev/null
++++ b/paramFiles/80K-earlymule-a200/normalModels.csv
+@@ -0,0 +1,7 @@
++count,type,schedule_id,min_accounts,max_accounts,min_period,max_period,bank_id
++4000,single,2,1,1,5,20,bank
++4000,fan_out,2,5,20,5,20,bank
++4000,fan_in,2,5,20,5,20,bank
++4000,forward,2,3,3,5,20,bank
++4000,mutual,2,2,2,5,20,bank
++4000,periodical,2,2,2,5,20,bank
+diff --git a/paramFiles/80K-earlymule-a200/schema.json b/paramFiles/80K-earlymule-a200/schema.json
+new file mode 100644
+index 0000000..6b17fc0
+--- /dev/null
++++ b/paramFiles/80K-earlymule-a200/schema.json
+@@ -0,0 +1,305 @@
++{
++  "account": [
++    {
++      "name": "acct_id",
++      "valueType": "string",
++      "dataType": "account_id"
++    },
++    {
++      "name": "dsply_nm",
++      "valueType": "string",
++      "dataType": "account_name"
++    }, 
++    {
++      "name": "type",
++      "valueType": "string",
++      "dataType": "account_type",
++      "defaultValue": "SAV"
++    },
++    {
++      "name": "acct_stat",
++      "valueType": "string",
++      "defaultValue": "A"
++    },
++    {
++      "name": "acct_rptng_crncy",
++      "valueType": "string",
++      "defaultValue": "USD"
++    },
++    {
++      "name": "prior_sar_count",
++      "valueType": "boolean",
++      "dataType": "sar_flag"
++    },
++    {
++      "name": "branch_id",
++      "valueType": "int",
++      "defaultValue": 1
++    },
++    {
++      "name": "open_dt",
++      "valueType": "date",
++      "dataType": "start_time",
++      "defaultValue": 0
++    },
++    {
++      "name": "close_dt",
++      "valueType": "date",
++      "dataType": "end_time",
++      "defaultValue": 1000000
++    },
++    {
++      "name": "initial_deposit",
++      "valueType": "float",
++      "dataType": "initial_balance"
++    },
++    {
++      "name": "tx_behavior_id",
++      "valueType": "int",
++      "dataType": "model_id"
++    },
++    {
++      "name": "bank_id",
++      "valueType": "int",
++      "dataType": "bank_id"
++    },
++    {
++      "name": "first_name",
++      "valueType": "string"
++    },
++    {
++      "name": "last_name",
++      "valueType": "string"
++    },
++    {
++      "name": "street_addr",
++      "valueType": "string"
++    },
++    {
++      "name": "city",
++      "valueType": "string"
++    },
++    {
++      "name": "state",
++      "valueType": "string"
++    },
++    {
++      "name": "country",
++      "valueType": "string",
++      "defaultValue": "US",
++      "dataType": "country"
++    },
++    {
++      "name": "zip",
++      "valueType": "string"
++    },
++    {
++      "name": "gender",
++      "valueType": "string"
++    },
++    {
++      "name": "birth_date",
++      "valueType": "date"
++    },
++    {
++      "name": "ssn",
++      "valueType": "string"
++    },
++    {
++      "name": "lon",
++      "valueType": "float"
++    },
++    {
++      "name": "lat",
++      "valueType": "float"
++    }
++  ], 
++  "transaction": [
++    {
++      "name": "tran_id",
++      "valueType": "string",
++      "dataType": "transaction_id"
++    },
++    {
++      "name": "orig_acct",
++      "valueType": "string",
++      "dataType": "orig_id"
++    },
++    {
++      "name": "bene_acct",
++      "valueType": "string",
++      "dataType": "dest_id"
++    },
++    {
++      "name": "tx_type",
++      "valueType": "string",
++      "dataType": "transaction_type"
++    },
++    {
++      "name": "base_amt",
++      "valueType": "string",
++      "dataType": "amount"
++    },
++    {
++      "name": "tran_timestamp",
++      "valueType": "date",
++      "dataType": "timestamp"
++    },
++    {
++      "name": "is_sar",
++      "valueType": "boolean",
++      "dataType": "sar_flag"
++    },
++    {
++      "name": "alert_id",
++      "valueType": "string",
++      "dataType": "alert_id"
++    }
++  ],
++  "alert_tx": [
++    {
++      "name": "alert_id",
++      "valueType": "string",
++      "dataType": "alert_id"
++    },
++    {
++      "name": "alert_type",
++      "valueType": "string",
++      "dataType": "alert_type"
++    },
++    {
++      "name": "is_sar",
++      "valueType": "boolean",
++      "dataType": "sar_flag"
++    },
++    {
++      "name": "tran_id",
++      "valueType": "string",
++      "dataType": "transaction_id"
++    },
++    {
++      "name": "orig_acct",
++      "valueType": "string",
++      "dataType": "orig_id"
++    },
++    {
++      "name": "bene_acct",
++      "valueType": "string",
++      "dataType": "dest_id"
++    },
++    {
++      "name": "tx_type",
++      "valueType": "string",
++      "dataType": "transaction_type"
++    },
++    {
++      "name": "base_amt",
++      "valueType": "float",
++      "dataType": "amount"
++    },
++    {
++      "name": "tran_timestamp",
++      "valueType": "date",
++      "dataType": "timestamp"
++    }
++  ],
++  "alert_member": [
++    {"name": "alert_id", "dataType": "alert_id"},
++    {"name": "alert_type", "dataType": "alert_type"},
++    {"name": "acct_id", "dataType": "account_id"},
++    {"name": "acct_name", "dataType": "account_name"},
++    {"name": "is_sar", "dataType": "sar_flag"},
++    {"name": "model_id", "dataType": "model_id"},
++    {"name": "start", "dataType": "date", "defaultValue": 0},
++    {"name": "end", "dataType": "date", "defaultValue": 1000000},
++    {"name": "schedule_id", "dataType": "schedule_id"},
++    {"name": "bank_id", "dataType": "bank_id"}
++  ],
++  "party_individual": [
++    {"name": "birthPlaceCountry", "valueType": "string", "defaultValue": "US"},
++    {"name": "countryofResidency", "valueType": "string", "defaultValue": "US"},
++    {"name": "deathTime"},
++    {"name": "firstName"},
++    {"name": "isActive", "valueType": "int", "defaultValue": 1},
++    {"name": "lastName"},
++    {"name": "legalName"},
++    {"name": "listedCompany"},
++    {"name": "maritalStatus"},
++    {"name": "middleName"},
++    {"name": "name"},
++    {"name": "nameAlias"},
++    {"name": "nationality", "valueType": "string", "defaultValue": "US"},
++    {"name": "occupation"},
++    {"name": "organizationSymbol"},
++    {"name": "partyId", "valueType": "int", "dataType": "party_id"},
++    {"name": "partyType", "valueType": "string", "defaultValue": "Individual"},
++    {"name": "sourceOfIncome"},
++    {"name": "title"},
++    {"name": "website"},
++    {"name": "gender"},
++    {"name": "homePhone"},
++    {"name": "alternatePhone"},
++    {"name": "cellPhone"},
++    {"name": "primaryPhone"},
++    {"name": "workPhone"},
++    {"name": "alternateEmail"},
++    {"name": "companyEmail"},
++    {"name": "personalEmail"},
++    {"name": "workEmail"},
++    {"name": "isIndividual"}
++  ],
++  "party_organization": [
++    {"name": "birthPlaceCountry", "valueType": "string", "defaultValue": "US"},
++    {"name": "countryOfIncorporation", "valueType": "string", "defaultValue": "US"},
++    {"name": "countryOfResidency", "valueType": "string", "defaultValue": "US"},
++    {"name": "deathTime"},
++    {"name": "firstName"},
++    {"name": "isActive"},
++    {"name": "lastName"},
++    {"name": "legalName"},
++    {"name": "listedCompany"},
++    {"name": "maritalStatus"},
++    {"name": "middleName"},
++    {"name": "name"},
++    {"name": "nameAlias"},
++    {"name": "nationality", "valueType": "string", "defaultValue": "US"},
++    {"name": "occupation"},
++    {"name": "organizationSymbol"},
++    {"name": "partyId", "valueType": "int", "dataType": "party_id"},
++    {"name": "partyType", "valueType": "string", "defaultValue": "Organization"},
++    {"name": "sourceOfIncome"},
++    {"name": "title"},
++    {"name": "website"},
++    {"name": "gender"},
++    {"name": "homePhone"},
++    {"name": "alternatePhone"},
++    {"name": "cellPhone"},
++    {"name": "primaryPhone"},
++    {"name": "workPhone"},
++    {"name": "alternateEmail"},
++    {"name": "companyEmail"},
++    {"name": "personalEmail"},
++    {"name": "workEmail"},
++    {"name": "isIndividual", "valueType": "boolean", "defaultValue": false}
++  ],
++  "account_mapping": [
++    {"name": "cust_acct_mapping_id", "valueType": "int", "dataType": "mapping_id"},
++    {"name": "acct_id", "valueType": "int", "dataType": "account_id"},
++    {"name": "cust_id", "valueType": "int", "dataType": "party_id"},
++    {"name": "cust_acct_role", "valueType": "string", "defaultValue": "Primary"},
++    {"name": "src_sys", "valueType": "string", "defaultValue": "1"},
++    {"name": "data_dump_dt", "valueType": "date", "defaultValue": 1}
++  ],
++  "resolved_entities": [
++    {"name": "entityrefid", "valueType": "int", "dataType": "ref_id"},
++    {"name": "entityreference"},
++    {"name": "partyid1", "valueType": "int", "dataType": "first_id"},
++    {"name": "partyid2", "valueType": "int", "dataType": "second_id"},
++    {"name": "partyid1entitytype"},
++    {"name": "partyid2entitytype"},
++    {"name": "score", "valueType": "int", "defaultValue": 180},
++    {"name": "reason", "defaultValue": "same"}
++  ]
++}
++
++
+diff --git a/paramFiles/80K-earlymule-a200/transactionType.csv b/paramFiles/80K-earlymule-a200/transactionType.csv
+new file mode 100644
+index 0000000..79b82f5
+--- /dev/null
++++ b/paramFiles/80K-earlymule-a200/transactionType.csv
+@@ -0,0 +1,2 @@
++Type,Frequency
++TRANSFER,1
+\ No newline at end of file

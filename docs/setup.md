@@ -30,7 +30,7 @@ AMLSim (IBM) needs Java 8, Maven and Python 3.7 with old libraries (`networkx 1.
 
 | Component | Version | Source |
 |---|---|---|
-| AMLSim | commit `7338a4b` (2022-02-14) | https://github.com/IBM/AMLSim |
+| AMLSim | branch `earlymule-fixes` on top of upstream commit `7338a4b` (2022-02-14) | https://github.com/Verzol/AMLSim (fork of https://github.com/IBM/AMLSim) |
 | Java | OpenJDK 1.8.0_504 | apt `openjdk-8-jdk` |
 | Maven | 3.8.7 | apt `maven` |
 | Graphviz | 2.43.0 | apt `graphviz`, `libgraphviz-dev` |
@@ -45,7 +45,7 @@ AMLSim (IBM) needs Java 8, Maven and Python 3.7 with old libraries (`networkx 1.
 | Faker | 18.13.0 | pip |
 | MASON | 20, built from source (commit `b799a4a`), `sim.engine` only | https://github.com/eclab/mason |
 
-AMLSim is no longer maintained (last commit February 2022), so the commit hash above is the version used for all generated data.
+AMLSim is no longer maintained (last commit February 2022). All data is generated from the `earlymule-fixes` branch of the fork, which starts from that last upstream commit and changes the fan-in/fan-out schedule, how alert members are chosen and the ordering of cycle transactions. What was changed and why is explained in `EARLYMULE-TG.md` at the root of the fork; the full diff is at https://github.com/Verzol/AMLSim/compare/7338a4b...earlymule-fixes.
 
 ### 2.2. Install steps
 
@@ -74,8 +74,7 @@ conda activate amlsim
 AMLSim lives inside the repository folder but is excluded by `.gitignore` (`AMLSim/`). Clone it with `core.autocrlf=false`: on a Windows checkout with `autocrlf=true` the `.sh` scripts get CRLF line endings and fail in WSL with `$'\r': command not found`.
 ```bash
 cd /mnt/d/earlymule-tg
-git clone -c core.autocrlf=false https://github.com/IBM/AMLSim.git AMLSim
-git -C AMLSim checkout 7338a4b
+git clone -c core.autocrlf=false -b earlymule-fixes https://github.com/Verzol/AMLSim.git AMLSim
 pip install -r AMLSim/requirements.txt
 ```
 

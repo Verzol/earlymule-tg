@@ -10,8 +10,7 @@ data/processed/*
 *.pth
 *.ckpt
 
-# AMLSim outputs and local install
-AMLSim/
+# Simulator outputs. AMLSim/ itself is a submodule; its outputs are ignored by the fork's own .gitignore
 outputs/
 tmp/
 

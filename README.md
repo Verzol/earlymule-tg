@@ -6,15 +6,32 @@ Undergraduate thesis · Giang Tuấn Minh · VNU University of Engineering and T
 
 ## Status
 
-**Sprint 0 · Setup (2026-10-14 to 2026-10-18).** No code yet.
+**Phase 1 · Requirements and data feasibility (2026-10-19 to 2026-11-01).** AMLSim runs end to end; its schedule and member-sampling issues were fixed in a fork, and the feasibility checks are in the EDA notebook.
 
 This repository grows with the actual work: folders and files are added only when the corresponding task starts. The detailed plan and current tasks are tracked in Jira (project `EMTG`) and the Master Timeline sheet.
 
 ## Contents
 
-| File | Description |
+| Path | Description |
 |---|---|
 | `docs/research_plan.md` | Research plan proposed by the thesis advisor; the basis for the implementation plan. Kept verbatim in its original language. |
+| `docs/setup.md` | How every environment was built, with exact versions. |
+| `notebooks/01_amlsim_eda.ipynb` | Exploration of AMLSim output and the data feasibility checks. |
+| `AMLSim/` | Submodule: the AMLSim fork used to generate the synthetic dataset (see below). |
+
+## Third-party code
+
+`AMLSim/` is a Git submodule pointing to [Verzol/AMLSim](https://github.com/Verzol/AMLSim), a fork of [IBM/AMLSim](https://github.com/IBM/AMLSim) (Apache License 2.0). The submodule is pinned to the exact commit used to generate the data.
+
+- **What was changed and why:** [`EARLYMULE-TG.md`](https://github.com/Verzol/AMLSim/blob/earlymule-fixes/EARLYMULE-TG.md)
+- **Full diff against upstream:** [`7338a4b...earlymule-fixes`](https://github.com/Verzol/AMLSim/compare/7338a4b...earlymule-fixes)
+- **In the code:** every changed block carries an `EarlyMule-TG:` comment.
+
+Clone with the submodule:
+
+```bash
+git clone --recurse-submodules https://github.com/Verzol/earlymule-tg.git
+```
 
 ## Conventions
 

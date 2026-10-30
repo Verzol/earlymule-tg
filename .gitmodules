@@ -1,0 +1,4 @@
+[submodule "AMLSim"]
+	path = AMLSim
+	url = https://github.com/Verzol/AMLSim.git
+	branch = earlymule-fixes

@@ -71,10 +71,11 @@ conda activate amlsim
 
 **AMLSim source**
 
-AMLSim lives inside the repository folder but is excluded by `.gitignore` (`AMLSim/`). Clone it with `core.autocrlf=false`: on a Windows checkout with `autocrlf=true` the `.sh` scripts get CRLF line endings and fail in WSL with `$'\r': command not found`.
+AMLSim is a Git submodule of this repository at `AMLSim/`, pinned to the fork commit used to generate the data. Check it out with `core.autocrlf=false`: on a Windows checkout with `autocrlf=true` the `.sh` scripts get CRLF line endings and fail in WSL with `$'\r': command not found`.
 ```bash
 cd /mnt/d/earlymule-tg
-git clone -c core.autocrlf=false -b earlymule-fixes https://github.com/Verzol/AMLSim.git AMLSim
+git -c core.autocrlf=false submodule update --init AMLSim
+git -C AMLSim config core.autocrlf false   # keep LF on later checkouts
 pip install -r AMLSim/requirements.txt
 ```
 
@@ -109,7 +110,7 @@ python scripts/transaction_graph_generator.py conf.json   # 1. generate graph fr
 bash scripts/run_AMLSim.sh conf.json                      # 2. run the Java simulator
 python scripts/convert_logs.py conf.json                  # 3. convert logs to CSV outputs
 ```
-Outputs are written to `AMLSim/outputs/`, which is ignored by Git together with the rest of `AMLSim/`.
+Outputs are written to `AMLSim/outputs/` (intermediate files to `AMLSim/tmp/`); both are ignored by the fork's `.gitignore`, so generated data never reaches either repository.
 
 ### 2.4. Known issues
 

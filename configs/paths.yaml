@@ -1,0 +1,5 @@
+# Data locations, relative to the repo root. Override per machine in configs/local.yaml (git-ignored).
+amlsim_outputs: AMLSim/outputs
+dataset: 80K-earlymule-a200
+processed: data/processed
+experiments: experiments

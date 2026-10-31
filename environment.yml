@@ -1,0 +1,22 @@
+# Main conda env (CPU). Create in WSL from the repo root:
+#   conda env create -f environment.yml
+# Exact installed versions are in docs/setup.md.
+name: earlymule
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  - numpy>=1.26
+  - pandas>=2.2
+  - pyarrow>=15
+  - scikit-learn>=1.4
+  - lightgbm>=4.3
+  - pyyaml>=6
+  - matplotlib>=3.8
+  - jupyterlab>=4
+  - ipykernel
+  - pytest>=8
+  # No torch/PyG: graph models run on Kaggle
+  - pip:
+      - -e .

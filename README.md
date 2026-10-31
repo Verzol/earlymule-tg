@@ -18,6 +18,22 @@ This repository grows with the actual work: folders and files are added only whe
 | `docs/setup.md` | How every environment was built, with exact versions. |
 | `notebooks/01_amlsim_eda.ipynb` | Exploration of AMLSim output and the data feasibility checks. |
 | `AMLSim/` | Submodule: the AMLSim fork used to generate the synthetic dataset (see below). |
+| `environment.yml` | Main conda environment `earlymule` (CPU): pandas, LightGBM, pytest. |
+| `pyproject.toml` | Makes `src/earlymule` installable; pytest settings. |
+| `src/earlymule/` | Project code: `config` (data locations), `data`, `features`, `models`, `evaluation`. |
+| `configs/` | YAML configs. `paths.yaml` sets data locations; a git-ignored `local.yaml` overrides them per machine. |
+| `tests/` | Unit tests, run with `pytest`. |
+| `data/processed/` | Derived tables (ground truth, features); contents never committed. |
+
+## Quick start
+
+Inside WSL, after the AMLSim data has been generated (see `docs/setup.md`):
+
+```bash
+conda env create -f environment.yml
+conda activate earlymule
+pytest
+```
 
 ## Third-party code
 

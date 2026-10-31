@@ -1,0 +1,18 @@
+# Makes src/earlymule installable (pip install -e .). Dependencies live in environment.yml.
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "earlymule"
+version = "0.1.0"
+description = "Early mule-account detection on temporal transaction graphs (EarlyMule-TG thesis code)"
+requires-python = ">=3.10"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

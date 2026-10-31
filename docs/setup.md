@@ -5,7 +5,7 @@ This document records how the EarlyMule-TG environments were built, with exact v
 | Environment | Where | Used for | Status |
 |---|---|---|---|
 | AMLSim | WSL2 (Ubuntu) on the laptop | Generating the synthetic dataset D1 | Ready (2026-10-19) |
-| Main Python | Laptop, CPU only | Data processing, features, tabular baselines, tests | Planned |
+| Main Python | WSL2 on the laptop, CPU only | Data processing, features, tabular baselines, tests | Ready (2026-10-31) |
 | GPU | Kaggle notebook | Temporal GNN training | Planned |
 
 The laptop GPU is AMD (no CUDA), so GPU work runs on Kaggle.
@@ -121,9 +121,51 @@ Outputs are written to `AMLSim/outputs/` (intermediate files to `AMLSim/tmp/`); 
 | `mason.20.jar` cannot be downloaded | Original download page removed | Build from source, see 2.2 |
 | WSL paths become `C:/Program Files/Git/mnt/...` | Calling `wsl` from Git Bash triggers MSYS path conversion | Prefix the call with `MSYS_NO_PATHCONV=1`, or run from a WSL shell |
 
-## 3. Main Python environment (planned)
+## 3. Main Python environment
 
-To be filled in once set up: `environment.yml`, CPU PyTorch, PyTorch Geometric, LightGBM and the exact versions.
+All project code (ground truth, features, LightGBM, metrics, tests) runs in the conda env `earlymule`, defined in `environment.yml` at the repository root. It lives in WSL next to the `amlsim` env: conda is already installed there, and Kaggle also runs Linux, so behaviour matches between the laptop and the GPU notebook. It is CPU only; torch and PyTorch Geometric are not installed here because graph models are trained on Kaggle (section 4).
+
+`environment.yml` holds lower bounds only. The versions below were installed on 2026-10-31.
+
+### 3.1. Component versions
+
+| Component | Version |
+|---|---|
+| Conda | 26.7.2 (same Miniforge as section 2) |
+| Python | 3.12.16 |
+| numpy | 2.5.4 |
+| pandas | 3.1.0 |
+| pyarrow | 25.0.0 |
+| scikit-learn | 1.9.1 |
+| LightGBM | 4.7.0 |
+| PyYAML | 6.0.3 |
+| matplotlib | 3.11.2 |
+| JupyterLab | 4.6.5 |
+| pytest | 9.2.0 |
+| earlymule (this repo) | 0.1.0, editable install of `src/earlymule` |
+
+### 3.2. Install steps
+
+Inside WSL, from the repository root:
+```bash
+cd /mnt/d/earlymule-tg
+conda env create -f environment.yml    # also runs `pip install -e .`
+conda activate earlymule
+pytest                                 # 13 passed
+```
+After editing `environment.yml`:
+```bash
+conda env update -f environment.yml --prune
+```
+
+### 3.3. Data locations
+
+Code never hard-codes machine paths. `earlymule.config.load_paths()` reads `configs/paths.yaml`, where paths are relative to the repository root, and then applies `configs/local.yaml` if that file exists. `configs/local.yaml` is git-ignored and overrides only the keys it defines, for example on Kaggle:
+```yaml
+amlsim_outputs: /kaggle/input/earlymule-amlsim
+processed: /kaggle/working/processed
+```
+The repository root is taken from the package location; set `EARLYMULE_ROOT` to override it.
 
 ## 4. Kaggle GPU environment (planned)
 

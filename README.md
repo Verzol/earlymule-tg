@@ -24,6 +24,7 @@ This repository grows with the actual work: folders and files are added only whe
 | `configs/` | YAML configs. `paths.yaml` sets data locations; a git-ignored `local.yaml` overrides them per machine. |
 | `tests/` | Unit tests, run with `pytest`. |
 | `data/processed/` | Derived tables (ground truth, features); contents never committed. |
+| `reports/` | Short write-ups of checks and results, e.g. `ground_truth_check.md`. |
 
 ## Quick start
 

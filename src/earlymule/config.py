@@ -8,7 +8,7 @@ from pathlib import Path
 
 import yaml
 
-REQUIRED_KEYS = ("amlsim_outputs", "dataset", "processed", "experiments")
+REQUIRED_KEYS = ("amlsim_outputs", "amlsim_tmp", "amlsim_conf", "dataset", "processed", "experiments")
 
 
 def repo_root() -> Path:
@@ -24,6 +24,8 @@ class Paths:
     """Absolute data locations; `dataset` is the AMLSim run folder name."""
 
     amlsim_outputs: Path
+    amlsim_tmp: Path
+    amlsim_conf: Path
     dataset: str
     processed: Path
     experiments: Path
@@ -32,6 +34,11 @@ class Paths:
     def dataset_dir(self) -> Path:
         """Folder with the CSV files of the selected AMLSim run."""
         return self.amlsim_outputs / self.dataset
+
+    @property
+    def dataset_tmp_dir(self) -> Path:
+        """Generator files of the selected run (alert_members.csv)."""
+        return self.amlsim_tmp / self.dataset
 
 
 def _read_yaml(path: Path) -> dict:
@@ -69,6 +76,8 @@ def load_paths(
 
     return Paths(
         amlsim_outputs=resolve(cfg["amlsim_outputs"]),
+        amlsim_tmp=resolve(cfg["amlsim_tmp"]),
+        amlsim_conf=resolve(cfg["amlsim_conf"]),
         dataset=str(cfg["dataset"]),
         processed=resolve(cfg["processed"]),
         experiments=resolve(cfg["experiments"]),

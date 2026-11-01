@@ -20,7 +20,7 @@ This repository grows with the actual work: folders and files are added only whe
 | `AMLSim/` | Submodule: the AMLSim fork used to generate the synthetic dataset (see below). |
 | `environment.yml` | Main conda environment `earlymule` (CPU): pandas, LightGBM, pytest. |
 | `pyproject.toml` | Makes `src/earlymule` installable; pytest settings. |
-| `src/earlymule/` | Project code: `config` (data locations), `data`, `features`, `models`, `evaluation`. |
+| `src/earlymule/` | Project code: `config` (data locations), `experiment_log` (seeding, `experiments/experiments.csv`), `data`, `features`, `models`, `evaluation`. |
 | `configs/` | YAML configs. `paths.yaml` sets data locations; a git-ignored `local.yaml` overrides them per machine. |
 | `tests/` | Unit tests, run with `pytest`. |
 | `data/processed/` | Derived tables (ground truth, features); contents never committed. |

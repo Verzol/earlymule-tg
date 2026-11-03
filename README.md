@@ -34,6 +34,8 @@ Inside WSL, after the AMLSim data has been generated (see `docs/setup.md`):
 conda env create -f environment.yml
 conda activate earlymule
 pytest
+python -m earlymule.data.ground_truth   # labels -> data/processed/ground_truth.parquet
+python -m earlymule.models.tabular      # LightGBM walking skeleton -> experiments/experiments.csv
 ```
 
 ## Third-party code

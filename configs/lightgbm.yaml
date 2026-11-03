@@ -1,0 +1,24 @@
+# Walking skeleton: weekly snapshots, point-in-time features, LightGBM. Run: python -m earlymule.models.tabular
+seed: 0
+total_days: 720
+split_fractions: [0.60, 0.15, 0.25]
+horizon_days: 7          # snapshot every 7 days; positives are mules whose onset falls in the last 7 days
+min_history_days: 30     # first snapshot once the 30-day window is full
+windows: [1, 7, 30]
+train_negative_rate: 0.05  # share of negative train rows kept; all positives kept
+regular_min_tx: 20       # "regular" population: at least this many transfers up to the snapshot day
+recall_k: 100            # accounts reviewed per weekly snapshot
+lightgbm:
+  objective: binary
+  learning_rate: 0.05
+  n_estimators: 2000
+  num_leaves: 31
+  min_child_samples: 20
+  subsample: 0.8
+  subsample_freq: 1
+  colsample_bytree: 0.8
+  n_jobs: 4
+  deterministic: true
+  force_row_wise: true
+  verbose: -1
+early_stopping_rounds: 200  # validation PR-AUC dips for ~10 rounds before rising; a short patience stops at round 1

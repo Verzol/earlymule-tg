@@ -100,15 +100,16 @@ The AMLSim fork now has layered mule typologies for M1–M4 (`AMLSim/EARLYMULE-T
 - `python -m earlymule.data.ground_truth_audit` also compares layered alerts with the generator plan (`layered` in the JSON): planned versus observed edges, unplanned illicit edges, planned mules that are two-sided, out-before-in, same-day forwarding, and the forward ratio.
 - `python -m earlymule.data.shortcut_audit` ranks accounts by one whole-period activity feature at a time, in four populations: all accounts, active (any normal transfer), regular (at least 20 normal transfers), and regular without the other alert members. Output: `data/processed/shortcut_audit.csv`.
 
-| Check | `80K-earlymule-a200` | `10K-earlymule-mule` (smoke test) |
-|---|---:|---:|
-| Mule candidates | 598 (all cycle) | 311 (148 cycle, 163 layered) |
-| Planned layered mules two-sided | n/a | 163 / 163 |
-| Planned edges observed | n/a | 476 / 477 (one source never had funds) |
-| Unplanned illicit edges; layered mules out before in | n/a | 0; 0 |
-| Layered mules forwarding on the day they receive | n/a | 38 |
-| Normal transfer count, ROC-AUC: all / active / regular | 0.92 / 0.78 / 0.53 | 0.92 / 0.80 / 0.51 |
-| `initial_deposit`, ROC-AUC: all / regular | 0.50 / 0.50 | 0.64 / 0.49 |
+| Check | `80K-earlymule-a200` | `10K-earlymule-mule` (smoke test) | `80K-earlymule-mule` |
+|---|---:|---:|---:|
+| Mule candidates | 598 (all cycle) | 311 (148 cycle, 163 layered) | 750 (307 cycle, 175 M4, 168 M2, 50 M1, 50 M3) |
+| Planned layered mules two-sided | n/a | 163 / 163 | 443 / 443 |
+| Planned edges observed | n/a | 476 / 477 (one source never had funds) | 1,251 / 1,256 (sources without funds) |
+| Unplanned illicit edges; layered mules out before in | n/a | 0; 0 | 0; 0 |
+| Layered mules forwarding on the day they receive | n/a | 38 | 106 |
+| Normal transfer count, ROC-AUC: all / active / regular | 0.92 / 0.78 / 0.53 | 0.92 / 0.80 / 0.51 | 0.91 / 0.75 / 0.49 |
+| `initial_deposit`, ROC-AUC: all / regular | 0.50 / 0.50 | 0.64 / 0.49 | 0.63 / 0.49 |
 
-Activity alone separates candidates over all or active accounts because alert members are drawn from accounts with regular normal activity. Among regular accounts every screened feature stays between 0.45 and 0.57, so the evaluation population should be restricted to regular accounts; the exact rule (threshold, and counting only transfers before the cut-off day) belongs in the evaluation protocol. The higher `initial_deposit` score in the smoke test comes from the balance boost, which follows activity.
+Activity alone separates candidates over all or active accounts because alert members are drawn from accounts with regular normal activity. Among regular accounts every screened feature stays between 0.45 and 0.57 (0.48–0.51 in `80K-earlymule-mule`), so the evaluation population should be restricted to regular accounts; the exact rule (threshold, and counting only transfers before the cut-off day) belongs in the evaluation protocol. The higher `initial_deposit` score in the smoke test comes from the balance boost, which follows activity.
 
+In `80K-earlymule-mule`, M1 and M3 give one mule per alert, so they have 50 candidates each against 168–307 for the other typologies. Per-typology results need enough mules in each test split; more M1/M3 alerts would balance this.

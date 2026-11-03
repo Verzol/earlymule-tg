@@ -1,6 +1,8 @@
 """Per-account temporal ground truth (role, onset, completion) from AMLSim alert transactions.
 
 Evaluation only: never join these columns into model features.
+Candidates need illicit inflow and outflow in the same alert. This establishes two-sided
+membership, not within-day forwarding order; cycle-initiator handling is audited separately.
 Run: python -m earlymule.data.ground_truth   (writes data/processed/ground_truth.parquet)
 """
 
@@ -11,9 +13,6 @@ import pandas as pd
 
 from earlymule.config import load_paths
 from earlymule.data import amlsim
-
-# Roles that receive and pass on money; provisional mule label until the advisor confirms it
-MULE_ROLES = ("relay", "collector", "disperser")
 
 COLUMNS = [
     "alert_id", "acct_id", "typology", "is_main", "role", "is_mule_candidate",
@@ -60,6 +59,9 @@ def build_ground_truth(
         for the role (e.g. outflow of a collector) is <NA>, never 0.
     """
     # 1. Inflow and outflow sides; counterparties are restricted to the same alert
+    # A self-transfer cannot establish receipt from and forwarding to other accounts.
+    if alert_tx["orig_acct"].eq(alert_tx["bene_acct"]).any():
+        raise ValueError("self-transfers cannot establish an intermediary role")
     inflow = _side_stats(alert_tx, "bene_acct", "orig_acct", "in")
     outflow = _side_stats(alert_tx, "orig_acct", "bene_acct", "out")
 
@@ -73,7 +75,9 @@ def build_ground_truth(
     gt["n_illicit_in"] = gt["in_n"].fillna(0).astype("int64")
     gt["n_illicit_out"] = gt["out_n"].fillna(0).astype("int64")
     gt["role"] = assign_role(gt["n_illicit_in"], gt["n_illicit_out"])
-    gt["is_mule_candidate"] = gt["role"].isin(MULE_ROLES)
+    # Both illicit directions must be observed in this alert. One-sided fan hubs
+    # keep their structural roles, but normal transfers cannot supply the missing side.
+    gt["is_mule_candidate"] = gt["n_illicit_in"].gt(0) & gt["n_illicit_out"].gt(0)
 
     # 4. Milestones; same-day events have no known order, so only day-level min/max is used
     gt["first_illicit_inflow_day"] = gt["in_first"].astype("Int64")

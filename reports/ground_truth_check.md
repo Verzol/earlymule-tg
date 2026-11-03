@@ -1,11 +1,13 @@
 # Ground-truth extraction check
 
-Run `80K-earlymule-a200`, checked 2026-10-31.
+Run `80K-earlymule-a200`, extraction checked 2026-10-31; label rule corrected and audited 2026-11-02.
 Reproduce: `python -m earlymule.data.ground_truth` (writes `data/processed/ground_truth.parquet`), then `pytest tests/test_ground_truth.py`.
 
 ## Result
 
-1,494 alert accounts in 200 alerts. 715 are mule candidates (relay, collector or disperser), and all 715 have an onset day and a completion day.
+1,494 alert accounts in 200 alerts. **598 accounts satisfy the operational mule-candidate rule:** at least one observed illicit inflow and one observed illicit outflow in the **same alert**. All 598 have onset, completion, first-inflow and first-outflow days. The previous label incorrectly included 60 one-sided collectors and 57 one-sided dispersers, giving 715 positives.
+
+Structural roles are preserved for analysis. A collector or disperser name alone does not establish an intermediary. Normal transfers, account balance, generator membership and transfers belonging to another alert cannot supply a missing illicit side. Non-candidates are not asserted to be innocent in the real world; their inclusion/exclusion from evaluation remains a protocol decision.
 
 | Typology | Alerts | Collector | Disperser | Relay | Source | Destination | No illicit tx |
 |---|---:|---:|---:|---:|---:|---:|---:|
@@ -14,9 +16,41 @@ Reproduce: `python -m earlymule.data.ground_truth` (writes `data/processed/groun
 | fan_out | 60 | 0 | 57 | 0 | 0 | 341 | 25 |
 | **Total** | 200 | 60 | 57 | 598 | 371 | 348 | 60 |
 
-Days since mule onset to completion, over mule candidates: median 2, 75th percentile 6, max 19.
+Days since mule onset to completion, over the corrected 598 candidates: median 2, max 19. All are in cycle alerts; the present standalone fan-in/fan-out patterns do not generate a two-sided intermediary. This is a dataset coverage limitation and a possible topology shortcut for a classifier.
 
-On the original `10K` run, the script reproduces the counts in the EDA notebook (742 accounts, 345 mule-like, 285 relays); this is a test in `tests/test_ground_truth.py`.
+On the original `10K` run, the script reproduces the notebook's structural counts (742 accounts, 345 relay/collector/disperser rows, 285 relays), but only the 285 relays are now positive. The notebook's earlier label counts are historical.
+
+## Label audit (2026-11-02)
+
+Run `python -m earlymule.data.ground_truth_audit` to regenerate `data/processed/ground_truth_label_audit.csv` (every alert member) and `.json` (summary). These are evaluation-only artifacts. All 1,310 illicit edges match the complete `transactions.csv` export by transaction ID, alert, endpoints, amount and day; all endpoints have alert membership. Every member's in/out counts were independently checked against that full export. No account belongs to multiple alerts in this run.
+
+| Check | Result |
+|---|---:|
+| Previous positives | 715 |
+| Corrected two-sided candidates | 598 |
+| Removed collectors (no illicit outflow) | 60 |
+| Removed dispersers (no illicit inflow) | 57 |
+| Positive prevalence over all 96,344 accounts | 0.6207% |
+| Candidates with missing milestones | 0 |
+| Silent alert members, retained as non-candidates | 60 |
+
+57/60 collectors have normal outgoing payments during their alert's observed first-to-last illicit day; 27/57 dispersers have normal incoming payments in that window. Those normal payments are not marked as belonging to the laundering case, and AMLSim does not track the provenance of money. They therefore cannot justify retaining these 117 labels. The Java fan-in model generates only sources-to-hub edges; fan-out generates only hub-to-destination edges. This is not an omitted direction in the extraction script.
+
+### Two-sided membership versus forwarding order
+
+The implemented predicate checks membership in both directions; it does **not** claim to prove that a particular inflow funded a later outflow.
+
+| First illicit inflow versus first illicit outflow | Candidates |
+|---|---:|
+| Inflow on an earlier day | 378 |
+| Same day; within-day order unavailable | 145 |
+| Outflow on an earlier day (cycle main accounts) | 75 |
+
+The 75 cycle main accounts initiate a loop and later receive its return payment. They have both directions, so they remain candidates under the explicit two-sided predicate. **If "exclude the source at the start" is intended to exclude cycle initiators even when they later receive money, exclude these 75 separately: that alternative gives 523 candidates.** Requiring a provably earlier inflow day additionally drops 145 same-day accounts and gives 378. Neither stronger rule is silently substituted for the approved two-sided wording; record the cycle-initiator treatment in the evaluation protocol before interpreting early-detection results.
+
+Onset remains the first illicit event in either direction, and completion remains the last. For cycle initiators, onset is their outgoing event. Sources and destinations without both directions remain non-candidates. The 60 silent members have empty milestones.
+
+The earlier ROC-AUC figures in `column_classification.md` used 715 positives; they must be remeasured with this rule in EMTG-42. No corrected PR-AUC or LightGBM result has been produced by this audit.
 
 ## Hand check of five alerts
 

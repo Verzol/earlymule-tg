@@ -10,6 +10,8 @@ Each column is one of:
 
 "ROC-AUC" below means one column used alone to rank the 96,344 accounts, with the 715 mule candidates of the ground-truth table as positives (0.50 = no signal).
 
+**Label correction, 2026-11-02:** those scores are historical and used the previous 715-positive rule. The corrected same-alert, two-sided rule gives 598 candidates; see `ground_truth_check.md`. Column provenance decisions still apply, but all label-dependent scores and percentages below must be recomputed in EMTG-42 before being reported with the new labels.
+
 ## accounts.csv
 
 | Column | Class | Reason |

@@ -2,6 +2,8 @@
 
 Run `80K-earlymule-a200`, checked 2026-11-01. The split is enforced in `src/earlymule/data/leakage.py` and tested in `tests/test_leakage.py`.
 
+**2026-11-03:** the configured dataset is now `80K-earlymule-mule`. Every output file has the same columns as `80K-earlymule-a200`, so the classes below still apply. Generator-only additions (`layer`, `minDwell`, `maxDwell` in `alert_members.csv`, `planned_layer` in the ground truth) are evaluation-only. In the new run `initial_deposit` follows activity because of the balance boost (see `ground_truth_check.md`).
+
 Each column is one of:
 - **Input**: a bank would know it at the time; feature code may use it, but only from transactions dated on or before the prediction day.
 - **Key**: used to join tables, never as a feature value.

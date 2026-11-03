@@ -18,6 +18,7 @@ COLUMNS = [
     "alert_id", "acct_id", "typology", "is_main", "role", "is_mule_candidate",
     "n_illicit_in", "n_illicit_out", "onset_day", "first_illicit_inflow_day",
     "first_illicit_outflow_day", "completion_day", "upstream_accounts", "downstream_accounts",
+    "planned_layer",
 ]
 
 
@@ -70,6 +71,10 @@ def build_ground_truth(
           .set_index(["alert_id", "acct_id"]).join(inflow).join(outflow).reset_index())
     gt = gt.merge(alert_members, on=["alert_id", "acct_id"], how="left")
     gt["is_main"] = gt["is_main"].fillna(False).astype(bool)
+    # Generator plan, for audits only; the label below comes from observed transfers
+    if "planned_layer" not in gt:
+        gt["planned_layer"] = pd.NA
+    gt["planned_layer"] = gt["planned_layer"].astype("Int64")
 
     # 3. Counts and roles
     gt["n_illicit_in"] = gt["in_n"].fillna(0).astype("int64")

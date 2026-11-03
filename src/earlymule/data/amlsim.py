@@ -41,12 +41,18 @@ def load_alert_transactions(run_dir: Path, base_date: pd.Timestamp) -> pd.DataFr
 
 
 def load_alert_members(tmp_run_dir: Path) -> pd.DataFrame:
-    """Generator view of alert members: alert_id, acct_id, is_main.
+    """Generator view of alert members: alert_id, acct_id, is_main, planned_layer, in file order.
 
-    Only the simulator knows the main account, so is_main is evaluation-only.
+    Only the simulator knows these, so all are evaluation-only. planned_layer is the layer of a
+    layered mule typology (0 = sources) and <NA> for other typologies or older runs. File order
+    is kept: the simulator pairs one-to-one layers by it.
     """
-    df = pd.read_csv(Path(tmp_run_dir) / "alert_members.csv", usecols=["alertID", "accountID", "isMain"])
-    df = df.rename(columns={"alertID": "alert_id", "accountID": "acct_id", "isMain": "is_main"})
+    df = pd.read_csv(Path(tmp_run_dir) / "alert_members.csv")
+    out = df[["alertID", "accountID", "isMain"]].rename(
+        columns={"alertID": "alert_id", "accountID": "acct_id", "isMain": "is_main"})
     # pandas may read true/false as bool or as strings depending on the file
-    df["is_main"] = df["is_main"].astype(str).str.lower().eq("true")
-    return df
+    out["is_main"] = out["is_main"].astype(str).str.lower().eq("true")
+    # Original typologies write layer -1; runs before the layered typologies have no column
+    layer = df["layer"] if "layer" in df else pd.Series(-1, index=df.index)
+    out["planned_layer"] = layer.where(layer >= 0).astype("Int64")
+    return out

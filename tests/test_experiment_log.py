@@ -5,7 +5,7 @@ import random
 import numpy as np
 
 from earlymule.config import load_paths
-from earlymule.experiment_log import LOG_COLUMNS, git_state, log_run, read_log, set_seed
+from earlymule.experiment_log import LOG_COLUMNS, dirty_paths, git_state, log_run, read_log, set_seed
 
 
 def test_same_seed_same_numbers():
@@ -41,3 +41,10 @@ def test_git_state_reads_commit():
     """Inside the repo the commit hash is found."""
     commit, _ = git_state()
     assert commit != "unknown" and len(commit) >= 7
+
+
+def test_dirty_paths_count_untracked_code_but_not_the_log():
+    """A new source file makes a run dirty; appending to the experiment log does not."""
+    porcelain = " M experiments/experiments.csv\n?? src/earlymule/models/new.py\nR  a.py -> b.py\n"
+    assert dirty_paths(porcelain) == ["src/earlymule/models/new.py", "b.py"]
+    assert dirty_paths("?? experiments/experiments.csv\n") == []

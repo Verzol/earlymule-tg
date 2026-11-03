@@ -36,6 +36,16 @@ def set_seed(seed: int) -> None:
     torch.cuda.manual_seed_all(seed)
 
 
+# The log itself changes on every run, so it never marks a run dirty
+LOG_DIR_PREFIX = "experiments/"
+
+
+def dirty_paths(porcelain: str, ignore_prefix: str = LOG_DIR_PREFIX) -> list[str]:
+    """Changed or untracked paths from `git status --porcelain`, without the experiment log folder."""
+    paths = [line[3:].split(" -> ")[-1].strip('"') for line in porcelain.splitlines() if line.strip()]
+    return [p for p in paths if not p.startswith(ignore_prefix)]
+
+
 def git_state() -> tuple[str, bool]:
     """Return (short commit hash, has uncommitted changes); ("unknown", True) outside git."""
     try:
@@ -43,14 +53,15 @@ def git_state() -> tuple[str, bool]:
             ["git", "rev-parse", "--short", "HEAD"], cwd=repo_root(),
             capture_output=True, text=True, check=True,
         ).stdout.strip()
-        # Ignore untracked files so scratch outputs do not mark every run dirty
+        # Untracked files count: new, uncommitted code would otherwise be logged as the clean commit.
+        # Scratch outputs stay out because they are git-ignored.
         status = subprocess.run(
-            ["git", "status", "--porcelain", "--untracked-files=no"], cwd=repo_root(),
+            ["git", "status", "--porcelain", "--untracked-files=all"], cwd=repo_root(),
             capture_output=True, text=True, check=True,
         ).stdout
     except (OSError, subprocess.CalledProcessError):
         return "unknown", True
-    return commit, bool(status.strip())
+    return commit, bool(dirty_paths(status))
 
 
 def log_run(

@@ -81,6 +81,7 @@ Fields from the ground-truth schema in the research plan (D1):
 | completion_time | `completion_day` | Proxy: last illicit event in either direction |
 | cashout_time | none | No. AMLSim writes no cash transactions (`cash_tx.csv` is empty) |
 | upstream_accounts / downstream_accounts | same names | Yes, within the same alert |
+| (generator plan) | `planned_layer` | Layered mule typologies only (0 = sources); `<NA>` otherwise. For audits, never for labels or features |
 
 All times are day indices. AMLSim has no time of day, so events on the same day have no known order.
 
@@ -91,3 +92,23 @@ All times are day indices. AMLSim has no time of day, so events on the same day 
    - Three fan_out alerts (78, 88, 111) have no transactions at all: the main account had almost no balance when the alert started, so all 22 members are silent. This is why there are 57 dispersers, not 60.
    - 20 of 33 silent fan_in sources had a balance under 1 at alert start, drained by normal transactions. The other 13 had money; the cause is not known yet.
 3. Silent members are kept in the table with `role = no_illicit` and empty days, so they can be excluded or studied later.
+
+## Layered mule typologies and shortcut screening (2026-11-03)
+
+The AMLSim fork now has layered mule typologies for M1–M4 (`AMLSim/EARLYMULE-TG.md`, sections 4–5). The label is unchanged: a candidate still needs an observed illicit inflow and outflow in the same alert. Two audits were added:
+
+- `python -m earlymule.data.ground_truth_audit` also compares layered alerts with the generator plan (`layered` in the JSON): planned versus observed edges, unplanned illicit edges, planned mules that are two-sided, out-before-in, same-day forwarding, and the forward ratio.
+- `python -m earlymule.data.shortcut_audit` ranks accounts by one whole-period activity feature at a time, in four populations: all accounts, active (any normal transfer), regular (at least 20 normal transfers), and regular without the other alert members. Output: `data/processed/shortcut_audit.csv`.
+
+| Check | `80K-earlymule-a200` | `10K-earlymule-mule` (smoke test) |
+|---|---:|---:|
+| Mule candidates | 598 (all cycle) | 311 (148 cycle, 163 layered) |
+| Planned layered mules two-sided | n/a | 163 / 163 |
+| Planned edges observed | n/a | 476 / 477 (one source never had funds) |
+| Unplanned illicit edges; layered mules out before in | n/a | 0; 0 |
+| Layered mules forwarding on the day they receive | n/a | 38 |
+| Normal transfer count, ROC-AUC: all / active / regular | 0.92 / 0.78 / 0.53 | 0.92 / 0.80 / 0.51 |
+| `initial_deposit`, ROC-AUC: all / regular | 0.50 / 0.50 | 0.64 / 0.49 |
+
+Activity alone separates candidates over all or active accounts because alert members are drawn from accounts with regular normal activity. Among regular accounts every screened feature stays between 0.45 and 0.57, so the evaluation population should be restricted to regular accounts; the exact rule (threshold, and counting only transfers before the cut-off day) belongs in the evaluation protocol. The higher `initial_deposit` score in the smoke test comes from the balance boost, which follows activity.
+

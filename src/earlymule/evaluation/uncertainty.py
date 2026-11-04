@@ -10,13 +10,18 @@ import pandas as pd
 
 
 def average_precision_fast(pos: np.ndarray, neg_sorted: np.ndarray) -> float:
-    """Average precision from positive scores and ascending negative scores.
+    """Average precision from positive scores and ascending negative scores, as sklearn computes it.
 
-    Precision at each positive counts negatives scored at or above it (ties go against the model).
+    Tied scores form one threshold: precision there counts every row scored at or above it.
+    LightGBM scores are piecewise constant, so ties are common.
     """
-    p = np.sort(pos)[::-1]
-    neg_above = len(neg_sorted) - np.searchsorted(neg_sorted, p, side="left")
-    return float(np.mean(np.arange(1, len(p) + 1) / (np.arange(1, len(p) + 1) + neg_above)))
+    # 1. Distinct positive scores, highest first, with the positives at or above each
+    values, counts = np.unique(pos, return_counts=True)
+    values, counts = values[::-1], counts[::-1]
+    tp = np.cumsum(counts)
+    # 2. Negatives at or above each threshold, then recall steps times precision
+    fp = len(neg_sorted) - np.searchsorted(neg_sorted, values, side="left")
+    return float(np.sum(counts / len(pos) * tp / (tp + fp)))
 
 
 def _interval(values: np.ndarray) -> list[float]:

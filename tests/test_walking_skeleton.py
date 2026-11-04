@@ -113,13 +113,16 @@ def test_early_detection_counts_misses_with_nullable_days():
 
 
 def test_fast_average_precision_matches_sklearn():
-    """Without ties the rank formula equals sklearn's average precision."""
+    """The rank formula equals sklearn's average precision, with and without ties."""
     from sklearn.metrics import average_precision_score
     from earlymule.evaluation.uncertainty import average_precision_fast
     rng = np.random.default_rng(0)
     pos, neg = rng.normal(1, 1, 30), rng.normal(0, 1, 500)
     y = np.r_[np.ones(30), np.zeros(500)]
     assert average_precision_fast(pos, np.sort(neg)) == pytest.approx(average_precision_score(y, np.r_[pos, neg]))
+    # Ties within and across classes, as LightGBM's piecewise-constant scores produce
+    pos_t, neg_t = np.round(pos, 1), np.round(neg, 1)
+    assert average_precision_fast(pos_t, np.sort(neg_t)) == pytest.approx(average_precision_score(y, np.r_[pos_t, neg_t]))
 
 
 def test_case_bootstrap_intervals():

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import time
+from collections.abc import Callable
 
 import lightgbm as lgb
 import numpy as np
@@ -22,43 +23,20 @@ from earlymule.data.leakage import input_columns
 from earlymule.data.splits import chronological_splits, snapshot_days, snapshot_labels
 from earlymule.evaluation.metrics import evaluate
 from earlymule.experiment_log import log_run, set_seed
-from earlymule.features.point_in_time import load_transactions, snapshot_features
+from earlymule.features.point_in_time import load_transactions, pair_first_day, snapshot_features
+
+META = ["acct_id", "snapshot", "label", "typology"]
 
 
-def build_split(tx, accounts, onset, typology, days, cfg, negative_rate=1.0, rng=None) -> pd.DataFrame:
-    """Stack the snapshots of one split into rows (acct_id, snapshot, features, label, typology).
-
-    Args:
-        accounts: accounts.csv input columns, indexed by acct_id.
-        onset, typology: per mule candidate, indexed by acct_id.
-        negative_rate: share of negatives kept (train only); positives are always kept.
-    """
-    frames = []
-    for t in days:
-        # 1. Label at t; mules that started before the window are left out
-        label = snapshot_labels(onset, accounts.index, t, cfg["horizon_days"])
-        keep = label.notna()
-        if negative_rate < 1.0:
-            keep &= label.eq(1) | pd.Series(rng.random(len(label)) < negative_rate, index=label.index)
-        ids = label.index[keep]
-        # 2. Features from transactions up to t, plus the static input
-        f = snapshot_features(tx, ids, t, tuple(cfg["windows"]))
-        f["initial_deposit"] = accounts.initial_deposit.reindex(ids).astype("float32")
-        f["label"] = label[ids].to_numpy()
-        f["snapshot"] = t
-        f["typology"] = typology.reindex(ids).where(f.label.eq(1)).to_numpy()
-        frames.append(f)
-    return pd.concat(frames).rename_axis("acct_id").reset_index()
+def load_config(name: str) -> dict:
+    """Read configs/<name>; a `base` key names another config whose values it overrides."""
+    cfg = yaml.safe_load((repo_root() / "configs" / name).read_text(encoding="utf-8"))
+    base = cfg.pop("base", None)
+    return {**load_config(base), **cfg} if base else cfg
 
 
-def main() -> None:
-    """Build the splits, train LightGBM, evaluate on validation and test, log the run."""
-    start = time.time()
-    cfg = yaml.safe_load((repo_root() / "configs" / "lightgbm.yaml").read_text(encoding="utf-8"))
-    set_seed(cfg["seed"])
-    rng = np.random.default_rng(cfg["seed"])
-
-    # 1. Inputs: transfers and static attributes; labels from the ground truth
+def load_inputs() -> dict:
+    """Transfers, static attributes and mule ground truth of the configured dataset."""
     paths = load_paths()
     base = amlsim.read_base_date(paths.amlsim_conf)
     tx = load_transactions(paths.dataset_dir, base)
@@ -68,23 +46,69 @@ def main() -> None:
                             amlsim.load_alert_transactions(paths.dataset_dir, base),
                             amlsim.load_alert_members(paths.dataset_tmp_dir))
     mules = gt[gt.is_mule_candidate].set_index("acct_id")
-    onset, typology = mules.onset_day.astype(float), mules.typology
+    return {"tx": tx, "accounts": accounts, "mules": mules, "first_day": pair_first_day(tx)}
 
-    # 2. Weekly snapshots per split; train negatives are subsampled to keep memory small
-    splits = {s.name: s for s in chronological_splits(cfg["total_days"], tuple(cfg["split_fractions"]))}
-    days = {n: snapshot_days(s, cfg["horizon_days"], cfg["min_history_days"]) for n, s in splits.items()}
-    data = {n: build_split(tx, accounts, onset, typology, days[n], cfg,
-                           cfg["train_negative_rate"] if n == "train" else 1.0, rng) for n in splits}
-    meta = ["acct_id", "snapshot", "label", "typology"]
-    features = [c for c in data["train"].columns if c not in meta]
 
-    # 3. Train with early stopping on validation PR-AUC
+def build_split(inputs: dict, label_fn: Callable[[int], pd.Series], days, cfg, negative_rate=1.0,
+                rng=None, keep: Callable[[pd.DataFrame], pd.Series] | None = None) -> pd.DataFrame:
+    """Stack the snapshots of one split into rows (acct_id, snapshot, features, label, typology).
+
+    Args:
+        label_fn: day t -> label per account (NaN = left out).
+        negative_rate: share of negatives kept (train only); positives are always kept.
+        keep: optional row filter on the feature table (e.g. regular accounts only).
+    """
+    accounts, frames = inputs["accounts"], []
+    for t in days:
+        # 1. Labels at t, then negative subsampling
+        label = label_fn(t)
+        mask = label.notna()
+        if negative_rate < 1.0:
+            mask &= label.eq(1) | pd.Series(rng.random(len(label)) < negative_rate, index=label.index)
+        ids = label.index[mask]
+        # 2. Features from transactions up to t, plus the static input
+        f = snapshot_features(inputs["tx"], ids, t, tuple(cfg["windows"]), inputs["first_day"])
+        f["initial_deposit"] = accounts.initial_deposit.reindex(ids).astype("float32")
+        f["label"] = label[ids].to_numpy()
+        f["snapshot"] = t
+        f["typology"] = inputs["mules"].typology.reindex(ids).where(f.label.eq(1)).to_numpy()
+        frames.append(f[keep(f)] if keep else f)
+    return pd.concat(frames).rename_axis("acct_id").reset_index()
+
+
+def model_features(frame: pd.DataFrame, cfg: dict) -> list[str]:
+    """Feature columns: everything except metadata and the configured exclusions."""
+    return [c for c in frame.columns if c not in META and c not in cfg.get("exclude_features", [])]
+
+
+def fit(train: pd.DataFrame, val: pd.DataFrame, features: list[str], cfg: dict) -> lgb.LGBMClassifier:
+    """LightGBM with early stopping on validation PR-AUC."""
     model = lgb.LGBMClassifier(random_state=cfg["seed"], **cfg["lightgbm"])
-    model.fit(data["train"][features], data["train"].label, eval_set=[(data["val"][features], data["val"].label)],
+    model.fit(train[features], train.label, eval_set=[(val[features], val.label)],
               eval_metric="average_precision",
               callbacks=[lgb.early_stopping(cfg["early_stopping_rounds"], verbose=False)])
+    return model
 
-    # 4. Evaluate on all accounts and on regular accounts (enough history at the snapshot day)
+
+def main() -> None:
+    """Build the splits, train LightGBM, evaluate on validation and test, log the run."""
+    start = time.time()
+    cfg = load_config("lightgbm.yaml")
+    set_seed(cfg["seed"])
+    rng = np.random.default_rng(cfg["seed"])
+
+    # 1. Inputs and weekly snapshots per split; train negatives are subsampled to keep memory small
+    inputs = load_inputs()
+    onset = inputs["mules"].onset_day.astype(float)
+    accts = inputs["accounts"].index
+    splits = {s.name: s for s in chronological_splits(cfg["total_days"], tuple(cfg["split_fractions"]))}
+    days = {n: snapshot_days(s, cfg["horizon_days"], cfg["min_history_days"]) for n, s in splits.items()}
+    data = {n: build_split(inputs, lambda t: snapshot_labels(onset, accts, t, cfg["horizon_days"]), days[n], cfg,
+                           cfg["train_negative_rate"] if n == "train" else 1.0, rng) for n in splits}
+    features = model_features(data["train"], cfg)
+
+    # 2. Train, then evaluate on all accounts and on regular accounts (enough history at the snapshot day)
+    model = fit(data["train"], data["val"], features, cfg)
     metrics = {"best_iteration": int(model.best_iteration_), "features": len(features)}
     for name in ["val", "test"]:
         frame = data[name].assign(score=model.predict_proba(data[name][features])[:, 1])
@@ -92,13 +116,14 @@ def main() -> None:
         metrics[name] = {"all": evaluate(frame, cfg["recall_k"]), "regular": evaluate(regular, cfg["recall_k"])}
     metrics["seconds"] = round(time.time() - start, 1)
 
-    # 5. Log and report
+    # 3. Log and report
     config = {**cfg, "splits": {n: [s.first_day, s.last_day] for n, s in splits.items()},
-              "snapshots": {n: len(d) for n, d in days.items()}, "train_rows": len(data["train"])}
-    log_run("lightgbm_walking_skeleton", config=config, seed=cfg["seed"], metrics=metrics)
+              "snapshots": {n: len(d) for n, d in days.items()}, "train_rows": len(data["train"]),
+              "feature_names": features}
+    log_run(cfg.get("run_name", "lightgbm_weekly"), config=config, seed=cfg["seed"], metrics=metrics)
     print(json.dumps(metrics, indent=1))
-    top = pd.Series(model.feature_importances_, index=features).sort_values(ascending=False).head(10)
-    print("top features (split count):\n" + top.to_string())
+    gain = pd.Series(model.booster_.feature_importance("gain"), index=features)
+    print("top features (gain share):\n" + (gain / gain.sum()).sort_values(ascending=False).head(12).round(3).to_string())
 
 
 if __name__ == "__main__":

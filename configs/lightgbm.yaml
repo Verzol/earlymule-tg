@@ -1,4 +1,5 @@
 # Walking skeleton: weekly snapshots, point-in-time features, LightGBM. Run: python -m earlymule.models.tabular
+run_name: lightgbm_weekly_v2
 seed: 0
 total_days: 720
 split_fractions: [0.60, 0.15, 0.25]
@@ -22,3 +23,7 @@ lightgbm:
   force_row_wise: true
   verbose: -1
 early_stopping_rounds: 200  # validation PR-AUC dips for ~10 rounds before rising; a short patience stops at round 1
+# Cumulative counts grow with the calendar, so test values sit outside the train range; kept only for
+# choosing the regular population (n_tx_hist). On 2026-11-04 window features alone gave test PR-AUC
+# 0.61 against 0.51 with these included.
+exclude_features: [n_tx_hist, days_since_first_tx]

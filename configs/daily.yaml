@@ -1,0 +1,6 @@
+# Daily scoring for early detection (RQ3). Run: python -m earlymule.models.daily_scoring
+base: lightgbm.yaml
+run_name: lightgbm_daily
+train_every_days: 1        # one training snapshot per day of the train split
+train_negative_rate: 0.01  # daily snapshots repeat accounts, so fewer negatives are kept per day
+alert_budgets: [5, 10, 20, 50]   # alerts reviewed per day; regular accounts only

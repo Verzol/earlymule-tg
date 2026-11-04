@@ -59,3 +59,42 @@ def test_recall_at_k_ranks_within_each_snapshot():
     assert recall_at_k(frame, k=1) == 0.5
     m = evaluate(frame, k=1)
     assert m["positives"] == 2 and m["recall_at_1_by_typology"] == {"cycle": 0.0, "m": 1.0}
+
+
+def test_new_peers_burst_and_recency():
+    """A peer is new if the pair first transacts inside the window; burst = 7-day share of 30 days."""
+    tx = pd.DataFrame({"orig_acct": [1, 1, 1, 2], "bene_acct": [2, 2, 3, 1],
+                       "base_amt": [10.0, 10.0, 10.0, 5.0], "day": [1, 20, 20, 15]})
+    f = snapshot_features(tx, ACCTS, t=20, windows=(7, 30))
+    assert f.loc[1, "peers_out_7d"] == 2 and f.loc[1, "new_peers_out_7d"] == 1   # 2 was paid on day 1
+    assert f.loc[1, "new_share_out_7d"] == 0.5 and f.loc[1, "new_peers_out_30d"] == 2
+    assert f.loc[1, "n_out_7d_over_30d"] == pytest.approx(2 / 3)
+    assert f.loc[1, "days_since_last_in"] == 5 and f.loc[1, "days_since_last_out"] == 0
+
+
+def test_features_with_precomputed_first_days_ignore_future():
+    """The all-days pair table gives the same features as one built from the past only."""
+    from earlymule.features.point_in_time import pair_first_day
+    full = snapshot_features(TX, ACCTS, t=10, windows=(1, 7, 30), first_day=pair_first_day(TX))
+    pd.testing.assert_frame_equal(full, snapshot_features(TX[TX.day.le(10)], ACCTS, t=10, windows=(1, 7, 30)))
+
+
+def test_active_labels():
+    """Positive from onset to completion, negative before, left out after completion."""
+    from earlymule.data.splits import active_labels
+    onset, comp = pd.Series([5.0], index=[1]), pd.Series([7.0], index=[1])
+    assert [active_labels(onset, comp, ACCTS, t)[1] for t in (4, 5, 7)] == [0.0, 1.0, 1.0]
+    assert np.isnan(active_labels(onset, comp, ACCTS, 8)[1]) and active_labels(onset, comp, ACCTS, 8)[2] == 0.0
+
+
+def test_early_detection_timing():
+    """First alert on or after onset; same-day detection counts as by-completion, not early."""
+    from earlymule.evaluation.early_detection import early_detection
+    scores = pd.DataFrame({"acct_id": [1, 2, 1, 2, 1, 2, 3, 3, 3], "snapshot": [5, 5, 6, 6, 7, 7, 5, 6, 7],
+                           "score": [0.1, 0.9, 0.8, 0.2, 0.9, 0.1, 0.0, 0.0, 0.5]})
+    mules = pd.DataFrame({"acct_id": [1, 3], "onset_day": [5, 7], "completion_day": [7, 7], "typology": ["a", "b"]})
+    r = early_detection(scores, mules, k=1)
+    # Mule 1 alerted on day 6 (< completion 7): early, TTD 1, lead 1. Mule 3 never in the top 1.
+    assert (r["mules"], r["detected_by_completion"], r["detected_early"]) == (2, 0.5, 0.5)
+    assert (r["median_ttd_days"], r["median_lead_days"], r["multi_day_mules"]) == (1.0, 1.0, 1)
+    assert r["alert_precision_active_mule"] == pytest.approx(2 / 3, abs=1e-4)

@@ -52,3 +52,15 @@ def snapshot_labels(onset: pd.Series, acct_ids: pd.Index, t: int, horizon: int) 
     label[o.gt(t - horizon) & o.le(t)] = 1.0
     label[o.le(t - horizon)] = np.nan
     return label
+
+
+def active_labels(onset: pd.Series, completion: pd.Series, acct_ids: pd.Index, t: int) -> pd.Series:
+    """Daily label at day t: 1.0 while a mule is active (onset <= t <= completion), 0.0 otherwise.
+
+    Mules after their completion day are NaN (left out): the case is over, so neither label fits.
+    """
+    o, c = onset.reindex(acct_ids), completion.reindex(acct_ids)
+    label = pd.Series(0.0, index=acct_ids)
+    label[o.le(t) & c.ge(t)] = 1.0
+    label[c.lt(t)] = np.nan
+    return label

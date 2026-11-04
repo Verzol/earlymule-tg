@@ -4,4 +4,4 @@ run_name: lightgbm_daily
 train_every_days: 1        # one training snapshot per day of the train split
 train_negative_rate: 0.01  # daily snapshots repeat accounts, so fewer negatives are kept per day
 alert_budgets: [5, 10, 20, 50]   # alerts reviewed per day; regular accounts only
-train_population: regular  # "all" stopped early at round 53; scoring is on regular accounts
+train_population: regular  # chosen on validation 2026-11-04: PR-AUC 0.548 (regular) vs 0.263 (all, stopped at round 53)

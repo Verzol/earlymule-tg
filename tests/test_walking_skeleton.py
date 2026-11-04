@@ -110,3 +110,36 @@ def test_early_detection_counts_misses_with_nullable_days():
     r = early_detection(scores, mules, k=1)
     # Only non-mule 2 is ever alerted: nothing detected, precision 0
     assert (r["detected_by_completion"], r["detected_early"], r["alert_precision_active_mule"]) == (0.0, 0.0, 0.0)
+
+
+def test_fast_average_precision_matches_sklearn():
+    """Without ties the rank formula equals sklearn's average precision."""
+    from sklearn.metrics import average_precision_score
+    from earlymule.evaluation.uncertainty import average_precision_fast
+    rng = np.random.default_rng(0)
+    pos, neg = rng.normal(1, 1, 30), rng.normal(0, 1, 500)
+    y = np.r_[np.ones(30), np.zeros(500)]
+    assert average_precision_fast(pos, np.sort(neg)) == pytest.approx(average_precision_score(y, np.r_[pos, neg]))
+
+
+def test_case_bootstrap_intervals():
+    """Intervals contain the point estimate here and repeat with the same seed."""
+    from earlymule.evaluation.uncertainty import bootstrap_detection, bootstrap_ranking
+    frame = pd.DataFrame({"acct_id": [1, 2, 3, 4, 5, 6], "snapshot": [1, 1, 1, 2, 2, 2],
+                          "label": [1, 0, 1, 1, 0, 0], "score": [0.9, 0.5, 0.1, 0.8, 0.7, 0.2]})
+    case_of = pd.Series({1: 10, 3: 11, 4: 12})
+    a = bootstrap_ranking(frame, case_of, k=1, n=200, seed=0)
+    assert a == bootstrap_ranking(frame, case_of, k=1, n=200, seed=0)
+    assert a["recall_at_1_ci95"][0] <= 2 / 3 <= a["recall_at_1_ci95"][1]
+    table = pd.DataFrame({"alert_id": [10, 11, 12], "by_completion": [True, False, True], "early": [True, False, False]})
+    b = bootstrap_detection(table, n=200, seed=0)
+    assert 0 <= b["detected_early_ci95"][0] <= b["detected_early_ci95"][1] <= 1
+
+
+def test_alert_share_on_hard_negatives():
+    """Alerts on non-mule alert members are reported as a share of all alerts."""
+    from earlymule.evaluation.early_detection import early_detection
+    scores = pd.DataFrame({"acct_id": [1, 2, 1, 2], "snapshot": [5, 5, 6, 6], "score": [0.1, 0.9, 0.9, 0.1]})
+    mules = pd.DataFrame({"acct_id": [1], "onset_day": [5], "completion_day": [6], "typology": ["a"]})
+    r = early_detection(scores, mules, k=1, other_members=pd.Index([2]))
+    assert r["alert_share_other_alert_members"] == 0.5

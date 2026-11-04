@@ -27,3 +27,4 @@ early_stopping_rounds: 300  # at learning rate 0.05 validation PR-AUC dipped for
 # choosing the regular population (n_tx_hist). On 2026-11-04 window features alone gave test PR-AUC
 # 0.61 against 0.51 with these included.
 exclude_features: [n_tx_hist, days_since_first_tx]
+bootstrap_samples: 1000   # case-bootstrap resamples for 95% intervals on test

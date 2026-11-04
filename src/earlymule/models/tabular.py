@@ -2,11 +2,12 @@
 
 Reads the configured dataset (configs/paths.yaml) and configs/lightgbm.yaml, scores the validation
 and test snapshots, and appends one row to experiments/experiments.csv.
-Run: python -m earlymule.models.tabular
+Run: python -m earlymule.models.tabular [--seed N]
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import time
 from collections.abc import Callable
@@ -22,6 +23,7 @@ from earlymule.data.ground_truth import build_ground_truth
 from earlymule.data.leakage import input_columns
 from earlymule.data.splits import chronological_splits, snapshot_days, snapshot_labels
 from earlymule.evaluation.metrics import evaluate
+from earlymule.evaluation.uncertainty import bootstrap_ranking
 from earlymule.experiment_log import log_run, set_seed
 from earlymule.features.point_in_time import load_transactions, pair_first_day, snapshot_features
 
@@ -46,7 +48,10 @@ def load_inputs() -> dict:
                             amlsim.load_alert_transactions(paths.dataset_dir, base),
                             amlsim.load_alert_members(paths.dataset_tmp_dir))
     mules = gt[gt.is_mule_candidate].set_index("acct_id")
-    return {"tx": tx, "accounts": accounts, "mules": mules, "first_day": pair_first_day(tx)}
+    # Hard negatives: alert members without both illicit directions (sources, exits, one-sided hubs)
+    others = pd.Index(gt.acct_id[~gt.is_mule_candidate].unique())
+    return {"tx": tx, "accounts": accounts, "mules": mules, "other_members": others,
+            "first_day": pair_first_day(tx)}
 
 
 def build_split(inputs: dict, label_fn: Callable[[int], pd.Series], days, cfg, negative_rate=1.0,
@@ -90,10 +95,17 @@ def fit(train: pd.DataFrame, val: pd.DataFrame, features: list[str], cfg: dict) 
     return model
 
 
+def seed_from_cli(cfg: dict) -> dict:
+    """Override the config seed with --seed, for repeated runs."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--seed", type=int, default=cfg["seed"])
+    return {**cfg, "seed": parser.parse_args().seed}
+
+
 def main() -> None:
     """Build the splits, train LightGBM, evaluate on validation and test, log the run."""
     start = time.time()
-    cfg = load_config("lightgbm.yaml")
+    cfg = seed_from_cli(load_config("lightgbm.yaml"))
     set_seed(cfg["seed"])
     rng = np.random.default_rng(cfg["seed"])
 
@@ -115,9 +127,13 @@ def main() -> None:
         frame = data[name].assign(score=model.predict(data[name][features], raw_score=True))
         regular = frame[frame.n_tx_hist.ge(cfg["regular_min_tx"])]
         metrics[name] = {"all": evaluate(frame, cfg["recall_k"]), "regular": evaluate(regular, cfg["recall_k"])}
+    # 3. Case-bootstrap intervals on test
+    case_of = inputs["mules"].alert_id
+    for pop, f in [("all", frame), ("regular", regular)]:
+        metrics["test"][pop].update(bootstrap_ranking(f, case_of, cfg["recall_k"], cfg["bootstrap_samples"], cfg["seed"]))
     metrics["seconds"] = round(time.time() - start, 1)
 
-    # 3. Log and report
+    # 4. Log and report
     config = {**cfg, "splits": {n: [s.first_day, s.last_day] for n, s in splits.items()},
               "snapshots": {n: len(d) for n, d in days.items()}, "train_rows": len(data["train"]),
               "feature_names": features}

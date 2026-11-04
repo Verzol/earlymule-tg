@@ -98,3 +98,15 @@ def test_early_detection_timing():
     assert (r["mules"], r["detected_by_completion"], r["detected_early"]) == (2, 0.5, 0.5)
     assert (r["median_ttd_days"], r["median_lead_days"], r["multi_day_mules"]) == (1.0, 1.0, 1)
     assert r["alert_precision_active_mule"] == pytest.approx(2 / 3, abs=1e-4)
+
+
+def test_early_detection_counts_misses_with_nullable_days():
+    """Int64 day columns (as in the ground truth) must not drop undetected mules or non-mule alerts."""
+    from earlymule.evaluation.early_detection import early_detection
+    scores = pd.DataFrame({"acct_id": [1, 2, 3, 1, 2, 3], "snapshot": [5, 5, 5, 6, 6, 6],
+                           "score": [0.1, 0.9, 0.0, 0.1, 0.9, 0.0]})
+    mules = pd.DataFrame({"acct_id": [1, 3], "onset_day": pd.array([5, 5], dtype="Int64"),
+                          "completion_day": pd.array([6, 6], dtype="Int64"), "typology": ["a", "b"]})
+    r = early_detection(scores, mules, k=1)
+    # Only non-mule 2 is ever alerted: nothing detected, precision 0
+    assert (r["detected_by_completion"], r["detected_early"], r["alert_precision_active_mule"]) == (0.0, 0.0, 0.0)

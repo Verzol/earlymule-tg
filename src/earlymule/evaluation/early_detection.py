@@ -23,8 +23,10 @@ def early_detection(scores: pd.DataFrame, mules: pd.DataFrame, k: int) -> dict:
     Returns:
         counts and shares; TTD and lead time in days (medians over mules detected by completion).
     """
-    # 1. Mules that were scored on at least one day of their activity
+    # 1. Mules that were scored on at least one day of their activity. Days as float: with nullable
+    #    Int64, comparisons against missing values give <NA>, which .mean() silently skips.
     first, last = scores.snapshot.min(), scores.snapshot.max()
+    mules = mules.astype({"onset_day": float, "completion_day": float})
     m = mules[mules.onset_day.between(first, last)].set_index("acct_id")
     scored = scores[scores.acct_id.isin(m.index)].merge(m, left_on="acct_id", right_index=True)
     in_case = scored.snapshot.between(scored.onset_day, scored.completion_day)
@@ -41,8 +43,9 @@ def early_detection(scores: pd.DataFrame, mules: pd.DataFrame, k: int) -> dict:
     early = detect.lt(m.completion_day)
     ttd = (detect - m.onset_day)[by_completion]
     lead = (m.completion_day - detect)[by_completion]
+    # Precision over all alerts: a hit is an alert on a mule during its own case
     active = alerts.merge(m, left_on="acct_id", right_index=True, how="left")
-    precision = active.snapshot.between(active.onset_day, active.completion_day).mean()
+    precision = active.snapshot.between(active.onset_day, active.completion_day).fillna(False).sum() / len(alerts)
     feasible = m.completion_day.gt(m.onset_day)
     by_type = pd.DataFrame({"typology": m.typology, "by_completion": by_completion})
     return {

@@ -111,7 +111,8 @@ def main() -> None:
     model = fit(data["train"], data["val"], features, cfg)
     metrics = {"best_iteration": int(model.best_iteration_), "features": len(features)}
     for name in ["val", "test"]:
-        frame = data[name].assign(score=model.predict_proba(data[name][features])[:, 1])
+        # Log-odds, not probabilities: probabilities saturate at 1.0 and tie at the top of the ranking
+        frame = data[name].assign(score=model.predict(data[name][features], raw_score=True))
         regular = frame[frame.n_tx_hist.ge(cfg["regular_min_tx"])]
         metrics[name] = {"all": evaluate(frame, cfg["recall_k"]), "regular": evaluate(regular, cfg["recall_k"])}
     metrics["seconds"] = round(time.time() - start, 1)

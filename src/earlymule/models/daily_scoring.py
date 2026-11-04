@@ -13,6 +13,7 @@ import time
 import numpy as np
 import pandas as pd
 
+from earlymule.config import load_paths
 from earlymule.data.splits import active_labels, chronological_splits
 from earlymule.evaluation.early_detection import early_detection
 from earlymule.evaluation.metrics import evaluate
@@ -49,8 +50,12 @@ def main() -> None:
     model = fit(data["train"], data["val"], features, cfg)
     table = mules.reset_index()[["acct_id", "onset_day", "completion_day", "typology"]]
     metrics = {"best_iteration": int(model.best_iteration_), "features": len(features)}
+    out_dir = load_paths().processed
     for name in ["val", "test"]:
-        frame = data[name].assign(score=model.predict_proba(data[name][features])[:, 1])
+        # Log-odds, not probabilities: probabilities saturate at 1.0 and tie at the top of the ranking
+        frame = data[name].assign(score=model.predict(data[name][features], raw_score=True))
+        # Kept for error analysis; evaluation-only file, never a model input
+        frame[["acct_id", "snapshot", "label", "typology", "score"]].to_parquet(out_dir / f"daily_scores_{name}.parquet")
         metrics[name] = {"ranking": evaluate(frame, cfg["recall_k"]),
                          "early_detection": [early_detection(frame, table, k) for k in cfg["alert_budgets"]]}
     metrics["seconds"] = round(time.time() - start, 1)

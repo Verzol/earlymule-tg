@@ -1,6 +1,7 @@
 """95% intervals by case bootstrap: whole laundering cases are resampled, because mules of one case move together.
 
-Negatives are kept fixed; only the positive rows (grouped by case) are resampled.
+Scores and alerts are fixed; only the mules, grouped by case, are resampled. Negatives, including the
+non-mule members of a case (hard negatives), stay fixed.
 """
 
 from __future__ import annotations
@@ -25,8 +26,8 @@ def average_precision_fast(pos: np.ndarray, neg_sorted: np.ndarray) -> float:
 
 
 def _interval(values: np.ndarray) -> list[float]:
-    """2.5th and 97.5th percentiles, rounded."""
-    return [round(float(v), 4) for v in np.percentile(values, [2.5, 97.5])]
+    """2.5th and 97.5th percentiles, rounded; NaN draws are skipped."""
+    return [round(float(v), 4) for v in np.nanpercentile(values, [2.5, 97.5])]
 
 
 def bootstrap_ranking(frame: pd.DataFrame, case_of: pd.Series, k: int, n: int, seed: int) -> dict:
@@ -53,13 +54,54 @@ def bootstrap_ranking(frame: pd.DataFrame, case_of: pd.Series, k: int, n: int, s
     return {"pr_auc_ci95": _interval(np.array(ap)), f"recall_at_{k}_ci95": _interval(np.array(rec))}
 
 
+# Detection shares of detection_table: (output name, hit column, column marking the mules counted)
+DETECTION_SHARES = [("detected_before_forwarding", "before_forwarding", "can_precede_forwarding"),
+                    ("detected_by_completion", "by_completion", None),
+                    ("detected_before_completion", "before_completion", None)]
+
+
+def _case_counts(table: pd.DataFrame, hit: str, counted: str | None) -> pd.DataFrame:
+    """Per case: mules counted and mules hit, so a resample is a weighted sum over cases."""
+    t = table.assign(n=table[counted].astype(int) if counted else 1)
+    t["h"] = (t[hit] & t.n.astype(bool)).astype(int)
+    return t.groupby("alert_id")[["n", "h"]].sum()
+
+
 def bootstrap_detection(table: pd.DataFrame, n: int, seed: int) -> dict:
-    """Intervals for the per-mule detection shares of detection_table, resampling cases."""
-    groups = [g for _, g in table.groupby("alert_id")]
+    """Intervals for the detection shares of detection_table, resampling whole cases.
+
+    Alerts are fixed (computed once from the scores); only the set of mule cases is resampled.
+    """
     rng = np.random.default_rng(seed)
-    by_c, early = [], []
-    for _ in range(n):
-        sample = pd.concat([groups[i] for i in rng.integers(0, len(groups), len(groups))])
-        by_c.append(sample.by_completion.mean())
-        early.append(sample.early.mean())
-    return {"detected_by_completion_ci95": _interval(np.array(by_c)), "detected_early_ci95": _interval(np.array(early))}
+    cases = table.alert_id.unique()
+    draws = rng.integers(0, len(cases), (n, len(cases)))
+    out = {}
+    for name, hit, counted in DETECTION_SHARES:
+        c = _case_counts(table, hit, counted).reindex(cases)
+        n_draw, h_draw = c.n.to_numpy()[draws].sum(1), c.h.to_numpy()[draws].sum(1)
+        # A draw without any counted mule has no share; it is skipped
+        out[f"{name}_ci95"] = _interval(np.where(n_draw > 0, h_draw / np.maximum(n_draw, 1), np.nan))
+    return out
+
+
+def paired_bootstrap_difference(a: pd.DataFrame, b: pd.DataFrame, n: int, seed: int,
+                                hit: str = "before_forwarding", counted: str | None = "can_precede_forwarding") -> dict:
+    """Difference of one detection share between two models, with a 95% paired case-bootstrap interval.
+
+    Args:
+        a, b: detection_table of each model on the same split, population, K and cooldown.
+    Returns:
+        difference a - b and its interval; a beats b on this run when the interval lies above 0.
+    """
+    # 1. Same mules on both sides; each draw uses the same cases for both models
+    if set(a.acct_id) != set(b.acct_id):
+        raise ValueError("detection tables cover different mules")
+    ca = _case_counts(a, hit, counted)
+    cb = _case_counts(b, hit, counted).reindex(ca.index)
+    draws = np.random.default_rng(seed).integers(0, len(ca), (n, len(ca)))
+    # 2. Shares per draw, then the spread of their difference
+    n_draw = ca.n.to_numpy()[draws].sum(1)
+    diff = np.where(n_draw > 0, (ca.h.to_numpy()[draws].sum(1) - cb.h.to_numpy()[draws].sum(1)) / np.maximum(n_draw, 1),
+                    np.nan)
+    point = (ca.h.sum() - cb.h.sum()) / max(ca.n.sum(), 1)
+    return {"difference": round(float(point), 4), "difference_ci95": _interval(diff)}

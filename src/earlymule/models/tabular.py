@@ -55,19 +55,22 @@ def load_inputs() -> dict:
 
 
 def build_split(inputs: dict, label_fn: Callable[[int], pd.Series], days, cfg, negative_rate=1.0,
-                rng=None, keep: Callable[[pd.DataFrame], pd.Series] | None = None) -> pd.DataFrame:
+                rng=None, keep: Callable[[pd.DataFrame], pd.Series] | None = None,
+                keep_unlabeled: bool = False) -> pd.DataFrame:
     """Stack the snapshots of one split into rows (acct_id, snapshot, features, label, typology).
 
     Args:
-        label_fn: day t -> label per account (NaN = left out).
+        label_fn: day t -> label per account (NaN = no label, e.g. a mule after completion).
         negative_rate: share of negatives kept (train only); positives are always kept.
         keep: optional row filter on the feature table (e.g. regular accounts only).
+        keep_unlabeled: keep NaN-label rows (scoring splits). A bank cannot tell a finished mule apart,
+            so it must stay in the ranking and can take alert slots; metrics skip its label.
     """
     accounts, frames = inputs["accounts"], []
     for t in days:
         # 1. Labels at t, then negative subsampling
         label = label_fn(t)
-        mask = label.notna()
+        mask = pd.Series(True, index=label.index) if keep_unlabeled else label.notna()
         if negative_rate < 1.0:
             mask &= label.eq(1) | pd.Series(rng.random(len(label)) < negative_rate, index=label.index)
         ids = label.index[mask]
@@ -87,8 +90,9 @@ def model_features(frame: pd.DataFrame, cfg: dict) -> list[str]:
 
 
 def fit(train: pd.DataFrame, val: pd.DataFrame, features: list[str], cfg: dict) -> lgb.LGBMClassifier:
-    """LightGBM with early stopping on validation PR-AUC."""
+    """LightGBM with early stopping on validation PR-AUC (labelled validation rows only)."""
     model = lgb.LGBMClassifier(random_state=cfg["seed"], **cfg["lightgbm"])
+    val = val[val.label.notna()]
     model.fit(train[features], train.label, eval_set=[(val[features], val.label)],
               eval_metric="average_precision",
               callbacks=[lgb.early_stopping(cfg["early_stopping_rounds"], verbose=False)])
@@ -116,7 +120,8 @@ def main() -> None:
     splits = {s.name: s for s in chronological_splits(cfg["total_days"], tuple(cfg["split_fractions"]))}
     days = {n: snapshot_days(s, cfg["horizon_days"], cfg["min_history_days"]) for n, s in splits.items()}
     data = {n: build_split(inputs, lambda t: snapshot_labels(onset, accts, t, cfg["horizon_days"]), days[n], cfg,
-                           cfg["train_negative_rate"] if n == "train" else 1.0, rng) for n in splits}
+                           cfg["train_negative_rate"] if n == "train" else 1.0, rng, keep_unlabeled=n != "train")
+            for n in splits}
     features = model_features(data["train"], cfg)
 
     # 2. Train, then evaluate on all accounts and on regular accounts (enough history at the snapshot day)

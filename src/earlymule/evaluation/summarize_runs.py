@@ -31,8 +31,11 @@ def daily_rows(metrics: dict) -> dict:
     out = {"test PR-AUC": _get(metrics, ("test", "ranking", "pr_auc"))}
     for e in _get(metrics, ("test", "early_detection")) or []:
         k = e["k_per_day"]
+        # Runs before the protocol review (2026-11-05) lack the forwarding metric and used "detected_early"
+        out[f"K={k} before forwarding"] = e.get("detected_before_forwarding")
         out[f"K={k} by completion"] = e["detected_by_completion"]
-        out[f"K={k} early"] = e["detected_early"]
+        out[f"K={k} before completion"] = e.get("detected_before_completion", e.get("detected_early"))
+        out[f"K={k} before completion, multi-day"] = e.get("detected_before_completion_multi_day")
         out[f"K={k} precision"] = e["alert_precision_active_mule"]
         out[f"K={k} alerts on other members"] = e.get("alert_share_other_alert_members")
     return out

@@ -73,7 +73,8 @@ def main() -> None:
     splits = {s.name: s for s in chronological_splits(cfg["total_days"], tuple(cfg["split_fractions"]))}
     days = {n: snapshot_days(s, cfg["horizon_days"], cfg["min_history_days"]) for n, s in splits.items()}
     data = {n: build_split(inputs, lambda t: snapshot_labels(onset, accts, t, cfg["horizon_days"]), days[n], cfg,
-                           cfg["train_negative_rate"] if n == "train" else 1.0, rng) for n in splits}
+                           cfg["train_negative_rate"] if n == "train" else 1.0, rng, keep_unlabeled=n != "train")
+            for n in splits}
     masks = {n: populations(data[n], inputs["other_members"], cfg["regular_min_tx"]) for n in ["val", "test"]}
     case_of = inputs["mules"].alert_id
 

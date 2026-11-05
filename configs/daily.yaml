@@ -5,3 +5,5 @@ train_every_days: 1        # one training snapshot per day of the train split
 train_negative_rate: 0.01  # daily snapshots repeat accounts, so fewer negatives are kept per day
 alert_budgets: [5, 10, 20, 50]   # alerts reviewed per day; regular accounts only
 train_population: regular  # chosen on validation 2026-11-04: PR-AUC 0.548 (regular) vs 0.263 (all, stopped at round 53)
+alert_cooldown_days: 30    # an alerted account is not alerted again for 30 days (reviewed); budget = K new accounts per day
+headline_k: 10             # evaluation protocol: headline budget; primary metric = detected before forwarding at this K

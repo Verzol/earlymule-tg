@@ -92,10 +92,13 @@ def test_early_detection_timing():
     from earlymule.evaluation.early_detection import early_detection
     scores = pd.DataFrame({"acct_id": [1, 2, 1, 2, 1, 2, 3, 3, 3], "snapshot": [5, 5, 6, 6, 7, 7, 5, 6, 7],
                            "score": [0.1, 0.9, 0.8, 0.2, 0.9, 0.1, 0.0, 0.0, 0.5]})
-    mules = pd.DataFrame({"acct_id": [1, 3], "onset_day": [5, 7], "completion_day": [7, 7], "typology": ["a", "b"]})
+    mules = pd.DataFrame({"acct_id": [1, 3], "onset_day": [5, 7], "completion_day": [7, 7],
+                          "first_illicit_outflow_day": [7, 7], "typology": ["a", "b"]})
     r = early_detection(scores, mules, k=1)
-    # Mule 1 alerted on day 6 (< completion 7): early, TTD 1, lead 1. Mule 3 never in the top 1.
-    assert (r["mules"], r["detected_by_completion"], r["detected_early"]) == (2, 0.5, 0.5)
+    # Mule 1 alerted on day 6 (< completion 7, < first outflow 7): early, TTD 1, lead 1. Mule 3 never in the top 1.
+    assert (r["mules"], r["detected_by_completion"], r["detected_before_completion"]) == (2, 0.5, 0.5)
+    # Mule 3 outflows on its onset day, so only mule 1 could be caught before forwarding
+    assert (r["mules_can_precede_forwarding"], r["detected_before_forwarding"]) == (1, 1.0)
     assert (r["median_ttd_days"], r["median_lead_days"], r["multi_day_mules"]) == (1.0, 1.0, 1)
     assert r["alert_precision_active_mule"] == pytest.approx(2 / 3, abs=1e-4)
 
@@ -106,10 +109,12 @@ def test_early_detection_counts_misses_with_nullable_days():
     scores = pd.DataFrame({"acct_id": [1, 2, 3, 1, 2, 3], "snapshot": [5, 5, 5, 6, 6, 6],
                            "score": [0.1, 0.9, 0.0, 0.1, 0.9, 0.0]})
     mules = pd.DataFrame({"acct_id": [1, 3], "onset_day": pd.array([5, 5], dtype="Int64"),
-                          "completion_day": pd.array([6, 6], dtype="Int64"), "typology": ["a", "b"]})
+                          "completion_day": pd.array([6, 6], dtype="Int64"),
+                          "first_illicit_outflow_day": pd.array([6, pd.NA], dtype="Int64"), "typology": ["a", "b"]})
     r = early_detection(scores, mules, k=1)
     # Only non-mule 2 is ever alerted: nothing detected, precision 0
-    assert (r["detected_by_completion"], r["detected_early"], r["alert_precision_active_mule"]) == (0.0, 0.0, 0.0)
+    assert (r["detected_by_completion"], r["detected_before_completion"], r["alert_precision_active_mule"]) == (0.0, 0.0, 0.0)
+    assert (r["mules_can_precede_forwarding"], r["detected_before_forwarding"]) == (1, 0.0)
 
 
 def test_fast_average_precision_matches_sklearn():
@@ -134,15 +139,50 @@ def test_case_bootstrap_intervals():
     a = bootstrap_ranking(frame, case_of, k=1, n=200, seed=0)
     assert a == bootstrap_ranking(frame, case_of, k=1, n=200, seed=0)
     assert a["recall_at_1_ci95"][0] <= 2 / 3 <= a["recall_at_1_ci95"][1]
-    table = pd.DataFrame({"alert_id": [10, 11, 12], "by_completion": [True, False, True], "early": [True, False, False]})
+    table = pd.DataFrame({"alert_id": [10, 11, 12], "by_completion": [True, False, True],
+                          "before_completion": [True, False, False], "before_forwarding": [True, False, False],
+                          "can_precede_forwarding": [True, True, False]})
     b = bootstrap_detection(table, n=200, seed=0)
-    assert 0 <= b["detected_early_ci95"][0] <= b["detected_early_ci95"][1] <= 1
+    assert 0 <= b["detected_before_completion_ci95"][0] <= b["detected_before_completion_ci95"][1] <= 1
+    # Only cases 10 and 11 count for forwarding; the share is 0, 0.5 or 1 per draw
+    assert set(b["detected_before_forwarding_ci95"]) <= {0.0, 0.5, 1.0}
 
 
 def test_alert_share_on_hard_negatives():
     """Alerts on non-mule alert members are reported as a share of all alerts."""
     from earlymule.evaluation.early_detection import early_detection
     scores = pd.DataFrame({"acct_id": [1, 2, 1, 2], "snapshot": [5, 5, 6, 6], "score": [0.1, 0.9, 0.9, 0.1]})
-    mules = pd.DataFrame({"acct_id": [1], "onset_day": [5], "completion_day": [6], "typology": ["a"]})
+    mules = pd.DataFrame({"acct_id": [1], "onset_day": [5], "completion_day": [6], "first_illicit_outflow_day": [6],
+                          "typology": ["a"]})
     r = early_detection(scores, mules, k=1, other_members=pd.Index([2]))
     assert r["alert_share_other_alert_members"] == 0.5
+
+
+def test_cooldown_gives_slots_to_new_accounts():
+    """An alerted account is skipped until the cooldown ends; its slot goes to the next account."""
+    from earlymule.evaluation.early_detection import daily_alerts
+    scores = pd.DataFrame({"acct_id": [1, 2, 1, 2, 1, 2], "snapshot": [0, 0, 1, 1, 2, 2],
+                           "score": [0.9, 0.1, 0.9, 0.1, 0.9, 0.1]})
+    assert daily_alerts(scores, k=1).acct_id.tolist() == [1, 1, 1]
+    assert daily_alerts(scores, k=1, cooldown=2).acct_id.tolist() == [1, 2, 1]
+
+
+def test_finished_mule_takes_a_slot_but_no_label():
+    """Unlabelled rows (finished mules) stay in the top-k ranking but not in PR-AUC or counts."""
+    frame = pd.DataFrame({"snapshot": [1, 1, 1], "label": [np.nan, 1.0, 0.0],
+                          "score": [0.9, 0.5, 0.1], "typology": [None, "m", None]})
+    m = evaluate(frame, k=1)
+    assert (m["rows"], m["unlabelled_rows"], m["recall_at_1"], m["pr_auc"]) == (2, 1, 0.0, 1.0)
+
+
+def test_paired_bootstrap_difference():
+    """Same cases on both sides; a model that catches every eligible mule beats one that catches none."""
+    from earlymule.evaluation.uncertainty import paired_bootstrap_difference
+    base = pd.DataFrame({"acct_id": [1, 2, 3, 4], "alert_id": [10, 10, 11, 12],
+                         "can_precede_forwarding": [True, True, True, False]})
+    a = base.assign(before_forwarding=[True, True, True, False])
+    b = base.assign(before_forwarding=[False, False, False, True])
+    r = paired_bootstrap_difference(a, b, n=200, seed=0)
+    assert r["difference"] == 1.0 and r["difference_ci95"] == [1.0, 1.0]
+    with pytest.raises(ValueError):
+        paired_bootstrap_difference(a, b.iloc[:3], n=10, seed=0)

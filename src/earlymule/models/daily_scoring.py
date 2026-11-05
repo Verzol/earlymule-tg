@@ -45,13 +45,15 @@ def main() -> None:
     # Train on the population that is scored, unless configured otherwise
     train_keep = regular if cfg["train_population"] == "regular" else None
     data = {"train": build_split(inputs, label_fn, days["train"], cfg, cfg["train_negative_rate"], rng, keep=train_keep),
-            "val": build_split(inputs, label_fn, days["val"], cfg, keep=regular),
-            "test": build_split(inputs, label_fn, days["test"], cfg, keep=regular)}
+            "val": build_split(inputs, label_fn, days["val"], cfg, keep=regular, keep_unlabeled=True),
+            "test": build_split(inputs, label_fn, days["test"], cfg, keep=regular, keep_unlabeled=True)}
     features = model_features(data["train"], cfg)
 
     # 3. Train, then rank and time the detections under each daily alert budget
     model = fit(data["train"], data["val"], features, cfg)
-    table = mules.reset_index()[["acct_id", "alert_id", "onset_day", "completion_day", "typology"]]
+    table = mules.reset_index()[["acct_id", "alert_id", "onset_day", "completion_day", "first_illicit_outflow_day",
+                                 "typology"]]
+    cooldown = cfg["alert_cooldown_days"]
     metrics = {"best_iteration": int(model.best_iteration_), "features": len(features)}
     out_dir = load_paths().processed
     for name in ["val", "test"]:
@@ -60,13 +62,17 @@ def main() -> None:
         # Kept for error analysis; evaluation-only file, never a model input
         frame[["acct_id", "snapshot", "label", "typology", "score"]].to_parquet(out_dir / f"daily_scores_{name}.parquet")
         metrics[name] = {"ranking": evaluate(frame, cfg["recall_k"]),
-                         "early_detection": [early_detection(frame, table, k, inputs["other_members"])
+                         "early_detection": [early_detection(frame, table, k, cooldown, inputs["other_members"])
                                              for k in cfg["alert_budgets"]]}
     # Case-bootstrap intervals on test, for the ranking and for each alert budget
     n, seed = cfg["bootstrap_samples"], cfg["seed"]
     metrics["test"]["ranking"].update(bootstrap_ranking(frame, mules.alert_id, cfg["recall_k"], n, seed))
+    tables = []
     for k, row in zip(cfg["alert_budgets"], metrics["test"]["early_detection"]):
-        row.update(bootstrap_detection(detection_table(frame, table, k), n, seed))
+        tables.append(detection_table(frame, table, k, cooldown).assign(k=k))
+        row.update(bootstrap_detection(tables[-1], n, seed))
+    # Per-mule outcomes, kept for paired comparisons between models (evaluation only)
+    pd.concat(tables).to_parquet(out_dir / f"detection_test_{cfg['run_name']}_seed{seed}.parquet")
     metrics["seconds"] = round(time.time() - start, 1)
 
     # 4. Log and report

@@ -17,6 +17,7 @@ This repository grows with the actual work: folders and files are added only whe
 | `docs/research_plan.md` | Research plan proposed by the thesis advisor; the basis for the implementation plan. Kept verbatim in its original language. |
 | `docs/setup.md` | How every environment was built, with exact versions. |
 | `docs/data_spec.md` | Data Spec of the dataset in use: generation, mule label, ground truth, allowed columns, limitations. |
+| `docs/evaluation_protocol.md` | How every model is scored: split, labels, scored population, metrics, uncertainty, open decisions. |
 | `notebooks/01_amlsim_eda.ipynb` | Exploration of AMLSim output and the data feasibility checks. |
 | `AMLSim/` | Submodule: the AMLSim fork used to generate the synthetic dataset (see below). |
 | `environment.yml` | Main conda environment `earlymule` (CPU): pandas, LightGBM, pytest. |

@@ -35,9 +35,14 @@ def populations(frame: pd.DataFrame, other_members: pd.Index, regular_min_tx: in
 
 
 def rule_score(frame: pd.DataFrame, feature: str) -> np.ndarray:
-    """Unlearned score per row: a feature column, or min_amt_in_out_7d (money both received and sent)."""
+    """Unlearned score per row: a feature column, or a derived one.
+
+    min_amt_in_out_7d: money both received and sent; new_peers_7d: counterparties first seen in the window.
+    """
     if feature == "min_amt_in_out_7d":
         return np.minimum(frame.amt_in_7d, frame.amt_out_7d).to_numpy()
+    if feature == "new_peers_7d":
+        return (frame.new_peers_in_7d + frame.new_peers_out_7d).to_numpy()
     return frame[feature].to_numpy()
 
 
@@ -107,6 +112,11 @@ def main() -> None:
     out_file.parent.mkdir(parents=True, exist_ok=True)
     table.to_csv(out_file, index=False)
     print(table.drop(columns="by_typology").round(4).to_string(index=False))
+    # How rare a new counterparty is for normal accounts: the gap behind the new_peers rule
+    test = data["test"].assign(new=rule_score(data["test"], "new_peers_7d") > 0)
+    for pop, mask in masks["test"].items():
+        share = test[mask.to_numpy()].groupby("label").new.mean().round(4).to_dict()
+        print(f"share of test rows with a new counterparty in 7 days, {pop}: negatives {share[0.0]}, mules {share[1.0]}")
     print(f"-> {out_file} ({time.time() - start:.0f} s)")
 
 

@@ -6,6 +6,7 @@ rules:
   fan_in: peers_in_7d        # distinct payers in the last 7 days
   fan_out: peers_out_7d      # distinct payees in the last 7 days
   pass_through: min_amt_in_out_7d  # money both received and sent in the last 7 days
+  new_peers: new_peers_7d    # counterparties never seen before the window; normal AMLSim accounts keep fixed peers
 # LightGBM on one feature group each; "full" uses the weekly v2 feature set
 models:
   static: [initial_deposit]

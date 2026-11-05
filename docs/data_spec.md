@@ -117,7 +117,7 @@ Features at day t use only transfers dated on or before t. Illicit transfers are
 
 **Difficulty so far** (LightGBM, test, mean of 3 seeds, `experiments/experiments.csv`):
 - weekly: PR-AUC 0.75 (random ranking: 0.0001), Recall@100 0.96;
-- daily, 10 alerts per day: 95% of mules alerted by their completion day, 60% strictly before it, alert precision 0.33, and 40% of alerts land on sources and exits of cases.
+- daily, 10 new accounts alerted per day with a 30-day cooldown (`docs/evaluation_protocol.md`): 76% of mules alerted before their first forwarding (of those that leave a day for it), 96% by their completion day, 65% strictly before it; 30% of alerts land on sources and exits of cases.
 
 Weekly scoring is close to its ceiling; daily scoring is where early-detection methods can still be compared.
 
@@ -144,7 +144,7 @@ Weekly scoring is close to its ceiling; daily scoring is where early-detection m
 
 ## 10. Open decisions
 
-1. **Sources and exits of cases**: negatives, as now, or left out of evaluation. They take 40% of daily alerts, so the choice changes precision substantially.
+1. **Sources and exits of cases**: negatives, as now, or left out of evaluation. They take about 30% of daily alerts, so the choice changes precision substantially.
 2. **Regular-population threshold**: currently at least 20 transfers up to the scoring day.
 3. **Cycle initiators** (40 accounts that send before they receive): kept as mules under the two-sided rule.
 4. **More realistic data** for later versions: noisy normal behaviour (occasional new counterparties), legitimate pass-through accounts, mules with variable forwarding and amounts, and mules reused across cases over several weeks.

@@ -1,6 +1,6 @@
 # Difficulty and leakage check
 
-Dataset `80K-earlymule-mule`, checked 2026-11-05 (commit `6ac5600`, seed 0).
+Dataset `80K-earlymule-mule`, checked 2026-11-05, rerun under evaluation protocol v0.2 (commit `a555755`, seed 0): accounts without a label (mules that started in an earlier week) stay in the ranking and can take top-100 slots.
 Reproduce: `python -m earlymule.models.difficulty` (about 7 minutes; logs one row per configuration as `difficulty_<name>` in `experiments/experiments.csv`, writes `data/processed/difficulty_table.csv`) and `python -m earlymule.data.shortcut_audit` (writes `data/processed/shortcut_audit.csv`, `shortcut_members.csv`).
 
 ## Setup
@@ -28,18 +28,18 @@ PR-AUC with 95% case-bootstrap interval; Recall@100 = share of mules in the top 
 
 | Configuration | All: PR-AUC | All: ROC-AUC | Regular: PR-AUC | Regular: ROC-AUC | Regular: Recall@100 | Regular, no other members: PR-AUC |
 |---|---:|---:|---:|---:|---:|---:|
-| random | 0.0001 | 0.51 | 0.0006 | 0.51 | 0.00 | 0.0007 |
+| random | 0.0001 | 0.50 | 0.0006 | 0.50 | 0.005 | 0.0007 |
 | rule_fan_in | 0.0020 | 0.97 | 0.0022 | 0.86 | 0.00 | 0.0026 |
 | rule_fan_out | 0.071 | 0.95 | 0.072 [0.043, 0.107] | 0.80 | 0.17 | 0.139 |
-| rule_pass_through | 0.0052 | 0.95 | 0.0053 | 0.84 | 0.08 | 0.0067 |
+| rule_pass_through | 0.0052 | 0.95 | 0.0053 | 0.84 | 0.07 | 0.0067 |
 | rule_new_peers | 0.019 | 0.99 | 0.019 [0.014, 0.030] | 0.97 | 0.23 | 0.022 |
 | lgbm_static | 0.0003 | 0.62 | 0.0006 | 0.48 | 0.01 | 0.0007 |
 | lgbm_activity | 0.0007 | 0.84 | 0.0008 | 0.57 | 0.01 | 0.0010 |
-| **lgbm_full** | **0.785** [0.731, 0.830] | 1.00 | **0.788** [0.732, 0.835] | 1.00 | **0.977** | **0.894** [0.858, 0.925] |
+| **lgbm_full** | **0.785** [0.731, 0.830] | 1.00 | **0.788** [0.732, 0.835] | 1.00 | **0.973** | **0.894** [0.858, 0.925] |
 
 Rows: all 2,388,097 (224 mules, rate 0.0001); regular 361,640 (219, 0.0006); regular without other members 298,615 (219, 0.0007).
 
-lgbm_full Recall@100 by typology (regular): M2 relay chain 1.00, M3 collect-exit 1.00, M4 collect-disperse 1.00, M1 fan-in-out 0.94, cycle 0.92. rule_new_peers puts no cycle or relay-chain mule in its top 100.
+lgbm_full Recall@100 by typology (regular): M2 relay chain 1.00, M3 collect-exit 1.00, M4 collect-disperse 1.00, M1 fan-in-out 0.94, cycle 0.89. rule_new_peers puts no cycle or relay-chain mule in its top 100.
 
 Share of test rows with at least one new counterparty in the last 7 days: mules 99.1%; regular non-mules 9.9%; all non-mules 1.6%.
 
@@ -62,7 +62,7 @@ The shortcut comes from drawing every alert member from accounts with regular no
 
 1. **No label leakage found.** Static input (`initial_deposit`) and activity level rank mules at random on regular accounts (PR-AUC 0.0006 and 0.0008 against a rate of 0.0006). Over all accounts the activity level still lifts ROC-AUC to 0.84, so results over all accounts must always come with the regular population.
 2. **No single rule solves the task.** The best rule (new payees, fan-out) reaches PR-AUC 0.07; LightGBM reaches 0.79. The model combines window features, mainly new counterparties and the 7-day share of 30-day counterparties.
-3. **The weekly task is easy, for a simulator reason.** 99% of mules meet a new counterparty in the week they start; only 10% of regular accounts do, because AMLSim normal models pay fixed counterparties. Recall@100 is 0.98, so weekly scoring cannot separate stronger models. The daily early-detection task (PR-AUC 0.65, 60% of mules caught strictly before completion at 10 alerts per day) remains the comparison task.
+3. **The weekly task is easy, for a simulator reason.** 99% of mules meet a new counterparty in the week they start; only 10% of regular accounts do, because AMLSim normal models pay fixed counterparties. Recall@100 is 0.97, so weekly scoring cannot separate stronger models. The daily early-detection task (76% of mules caught before their first forwarding at 10 new alerts per day, `docs/evaluation_protocol.md`) remains the comparison task.
 4. **Sources and exits are the hard negatives.** Removing them raises PR-AUC from 0.79 to 0.89 and doubles the fan-out rule (0.07 to 0.14). Whether they stay as negatives is a protocol decision for the advisor.
 5. **What to fix, and at what cost.** (a) Add occasional new counterparties to normal accounts in AMLSim: closes the main realism gap, but needs simulator changes and a new dataset with all checks rerun. (b) Keep the data and evaluate on daily scoring only, stating the limitation: no new work, but absolute numbers stay optimistic. (c) Add legitimate pass-through accounts as negatives: harder and more realistic, but needs a new normal model. Proposal: (b) now, (a) as the first change for the next dataset version, decided with the advisor.
 

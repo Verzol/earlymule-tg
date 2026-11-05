@@ -121,6 +121,8 @@ Features at day t use only transfers dated on or before t. Illicit transfers are
 
 Weekly scoring is close to its ceiling; daily scoring is where early-detection methods can still be compared.
 
+**Difficulty check** (`reports/difficulty_check.md`, weekly test, regular accounts): static input and activity level alone rank at random (PR-AUC 0.0006 and 0.0008, mule rate 0.0006); the best unlearned rule (new payees in 7 days) reaches 0.07; LightGBM 0.79. No label leakage was found.
+
 ## 8. Changes from the research plan
 
 | Research plan | This dataset | Reason |
@@ -132,9 +134,9 @@ Weekly scoring is close to its ceiling; daily scoring is where early-detection m
 
 ## 9. Known limitations
 
-1. **Activity shortcut.** Case members are drawn from accounts with regular activity, while most accounts barely transact. Counting normal transfers alone separates mules with ROC-AUC 0.92 over all accounts, but only 0.51 over regular accounts; this is why the regular population is the main one.
+1. **Activity shortcut.** Case members are drawn from accounts with regular activity, while most accounts barely transact. Counting normal transfers alone separates mules with ROC-AUC 0.92 over all accounts, but only 0.51 over regular accounts; this is why the regular population is the main one. The cause is member selection, not hubs: inside the regular population mules have the same median activity as other accounts (111–114 against 110 normal transfers).
 2. **Initial balance follows activity** because of change 5 (ROC-AUC 0.64 over all accounts, 0.50 over regular accounts).
-3. **Normal behaviour is very regular.** Normal models pay fixed counterparties on fixed schedules, so "new counterparty" features are strong. Real customers pay new people more often, so the task is likely easier than in practice.
+3. **Normal behaviour is very regular.** Normal models pay fixed counterparties on fixed schedules, so "new counterparty" features are strong: 99% of mules meet a new counterparty in the week they start, against 10% of regular accounts. Real customers pay new people more often, so the task is likely easier than in practice.
 4. **Mule behaviour is clean.** Mules forward exactly 90% (2 of 621 forward less, because a normal transfer took most of their balance), and illicit amounts are smaller than normal ones (median 156 against 550).
 5. **Same-day activity.** 174 mules start and finish on one day; at day resolution they cannot be caught before completion.
 6. **One case per mule.** No account is reused across cases, so recruitment and repeated use over weeks are not represented.

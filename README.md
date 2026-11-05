@@ -25,7 +25,7 @@ This repository grows with the actual work: folders and files are added only whe
 | `configs/` | YAML configs. `paths.yaml` sets data locations; a git-ignored `local.yaml` overrides them per machine. |
 | `tests/` | Unit tests, run with `pytest`. |
 | `data/processed/` | Derived tables (ground truth, features); contents never committed. |
-| `reports/` | Short write-ups of checks and results, e.g. `ground_truth_check.md`. |
+| `reports/` | Short write-ups of checks and results, e.g. `ground_truth_check.md`, `difficulty_check.md`. |
 
 ## Quick start
 
@@ -37,6 +37,7 @@ conda activate earlymule
 pytest
 python -m earlymule.data.ground_truth   # labels -> data/processed/ground_truth.parquet
 python -m earlymule.models.tabular      # LightGBM walking skeleton -> experiments/experiments.csv
+python -m earlymule.models.difficulty   # difficulty and leakage check -> experiments/experiments.csv, data/processed/difficulty_table.csv
 ```
 
 ## Third-party code

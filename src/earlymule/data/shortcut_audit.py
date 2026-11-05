@@ -3,7 +3,7 @@
 Each feature ranks accounts alone against the mule-candidate label (ROC-AUC 0.5 = no signal,
 far from 0.5 in either direction = shortcut). Features cover the whole simulation, so this is a
 screening of the dataset, not a point-in-time model; never reuse them as model inputs.
-Run: python -m earlymule.data.shortcut_audit   (writes data/processed/shortcut_audit.csv)
+Run: python -m earlymule.data.shortcut_audit   (writes data/processed/shortcut_audit.csv, shortcut_members.csv)
 """
 
 from __future__ import annotations
@@ -66,6 +66,33 @@ def single_feature_auc(features: pd.DataFrame, positive: pd.Series,
     return pd.DataFrame(table)
 
 
+def member_activity(f: pd.DataFrame, gt: pd.DataFrame) -> pd.DataFrame:
+    """Normal activity of alert members by role and main flag, against non-member accounts.
+
+    Shows whether the selection of alert members (not hubs in particular) drives the activity shortcut.
+    Args:
+        f: account_activity output.
+        gt: ground truth, one row per (alert_id, acct_id).
+    Returns:
+        One row per group: accounts, median normal transfers, share regular, median percentile among active accounts.
+    """
+    # 1. One group per member row; an account in two alerts counts once per role it plays
+    groups = gt.assign(group=np.where(gt.is_mule_candidate, "mule", "other_" + gt.role.astype(str))
+                       + np.where(gt.is_main, " (main)", ""))[["acct_id", "group"]].drop_duplicates()
+    non_member = f.index[~f.index.isin(gt.acct_id)]
+    groups = pd.concat([groups, pd.DataFrame({"acct_id": non_member[f.loc[non_member, "normal_total"].gt(0)],
+                                              "group": "non_member_active"}),
+                        pd.DataFrame({"acct_id": non_member[f.loc[non_member, "normal_total"].ge(REGULAR_MIN_NORMAL_TX)],
+                                      "group": "non_member_regular"})])
+    # 2. Percentile of normal activity among every account with at least one normal transfer
+    active = f.normal_total[f.normal_total.gt(0)]
+    pct = active.rank(pct=True)
+    g = groups.assign(n=groups.acct_id.map(f.normal_total), pct=groups.acct_id.map(pct)).groupby("group")
+    return pd.DataFrame({"accounts": g.size(), "median_normal_tx": g.n.median(),
+                         "share_regular": g.n.apply(lambda s: s.ge(REGULAR_MIN_NORMAL_TX).mean()),
+                         "median_pct_among_active": g.pct.median()}).sort_values("median_normal_tx")
+
+
 def main() -> None:
     """Screen the configured dataset and write the AUC table."""
     # 1. Labels and whole-period activity of the selected run
@@ -97,6 +124,9 @@ def main() -> None:
     sizes = {k: f"{int(m.sum())} ({int(positive[m].sum())} pos)" for k, m in populations.items()}
     print(f"{paths.dataset}: populations {sizes} -> {out_file}")
     print(table.round(3).to_string())
+    members = member_activity(f, gt)
+    members.to_csv(paths.processed / "shortcut_members.csv")
+    print(members.round(3).to_string())
 
 
 if __name__ == "__main__":

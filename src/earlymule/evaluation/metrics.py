@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import average_precision_score
+from sklearn.metrics import average_precision_score, roc_auc_score
 
 
 def recall_at_k(frame: pd.DataFrame, k: int) -> float:
@@ -25,12 +25,13 @@ def evaluate(frame: pd.DataFrame, k: int) -> dict:
     Args:
         frame: rows with snapshot, label, score and typology (NaN for negatives).
     Returns:
-        counts, mule rate, PR-AUC, Recall@K and Recall@K per typology.
+        counts, mule rate, PR-AUC, ROC-AUC, Recall@K and Recall@K per typology.
     """
     # 1. Pooled ranking quality; the mule rate is the PR-AUC of a random ranking
     n_pos = int(frame.label.sum())
     out = {"rows": len(frame), "positives": n_pos, "mule_rate": n_pos / len(frame),
            "pr_auc": float(average_precision_score(frame.label, frame.score)) if n_pos else np.nan,
+           "roc_auc": float(roc_auc_score(frame.label, frame.score)) if 0 < n_pos < len(frame) else np.nan,
            f"recall_at_{k}": recall_at_k(frame, k)}
 
     # 2. Recall@K by typology, to see whether only some patterns are found

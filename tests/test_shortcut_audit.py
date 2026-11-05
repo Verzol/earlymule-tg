@@ -3,7 +3,7 @@
 import numpy as np
 import pandas as pd
 
-from earlymule.data.shortcut_audit import account_activity, single_feature_auc
+from earlymule.data.shortcut_audit import account_activity, member_activity, single_feature_auc
 
 
 def test_account_activity_counts_normal_transfers_only():
@@ -25,3 +25,14 @@ def test_single_feature_auc_direction_and_populations():
     t = single_feature_auc(f, y, pops)
     assert (t.loc["up", "all"], t.loc["down", "all"]) == (1.0, 0.0)
     assert t["negatives"].isna().all()
+
+
+def test_member_activity_groups_members_and_non_members():
+    """Mules, other members by role and main flag, and non-members are separate groups."""
+    f = pd.DataFrame({"normal_total": [0, 5, 30, 40, 50]}, index=pd.Index([1, 2, 3, 4, 5], name="acct_id"))
+    gt = pd.DataFrame({"acct_id": [3, 4], "is_mule_candidate": [True, False],
+                       "role": ["relay", "source"], "is_main": [True, False]})
+    t = member_activity(f, gt)
+    assert set(t.index) == {"mule (main)", "other_source", "non_member_active", "non_member_regular"}
+    assert t.loc["non_member_active", "accounts"] == 2 and t.loc["non_member_regular", "accounts"] == 1
+    assert t.loc["other_source", "median_pct_among_active"] == 0.75

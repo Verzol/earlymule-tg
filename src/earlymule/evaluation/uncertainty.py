@@ -9,6 +9,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from earlymule.evaluation.metrics import rank_by_score
+
 
 def average_precision_fast(pos: np.ndarray, neg_sorted: np.ndarray) -> float:
     """Average precision from positive scores and ascending negative scores, as sklearn computes it.
@@ -38,7 +40,7 @@ def bootstrap_ranking(frame: pd.DataFrame, case_of: pd.Series, k: int, n: int, s
         case_of: alert_id per mule acct_id.
     """
     # 1. Fixed parts: sorted negatives and, per positive row, whether it made its snapshot's top k
-    ranked = frame.sort_values("score", ascending=False, kind="stable")
+    ranked = rank_by_score(frame)
     in_top = ranked.groupby("snapshot").cumcount().lt(k)
     pos = ranked[ranked.label.eq(1)].assign(top=in_top[ranked.label.eq(1)], case=lambda d: d.acct_id.map(case_of))
     neg_sorted = np.sort(ranked.score[ranked.label.eq(0)].to_numpy())

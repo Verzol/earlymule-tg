@@ -7,6 +7,13 @@ import pandas as pd
 from sklearn.metrics import average_precision_score, roc_auc_score
 
 
+def rank_by_score(frame: pd.DataFrame) -> pd.DataFrame:
+    """Rows in ranking order: score descending, ties broken by acct_id ascending (same rule for every model)."""
+    if "acct_id" not in frame:
+        return frame.sort_values("score", ascending=False, kind="stable")
+    return frame.sort_values(["score", "acct_id"], ascending=[False, True], kind="stable")
+
+
 def recall_at_k(frame: pd.DataFrame, k: int) -> float:
     """Share of positives ranked in the top k of their own snapshot.
 
@@ -14,7 +21,7 @@ def recall_at_k(frame: pd.DataFrame, k: int) -> float:
         frame: rows with snapshot, label (0/1, NaN = unlabelled but still ranked) and score.
         k: accounts an analyst reviews per snapshot.
     """
-    top = frame.sort_values("score", ascending=False, kind="stable").groupby("snapshot").head(k)
+    top = rank_by_score(frame).groupby("snapshot").head(k)
     total = frame.label.sum()
     return float(top.label.sum() / total) if total else np.nan
 
@@ -38,7 +45,7 @@ def evaluate(frame: pd.DataFrame, k: int) -> dict:
            f"recall_at_{k}": recall_at_k(frame, k)}
 
     # 2. Recall@K by typology, to see whether only some patterns are found
-    top = frame.sort_values("score", ascending=False, kind="stable").groupby("snapshot").head(k)
+    top = rank_by_score(frame).groupby("snapshot").head(k)
     pos = frame[frame.label.eq(1)]
     found = top[top.label.eq(1)].typology.value_counts()
     out[f"recall_at_{k}_by_typology"] = {

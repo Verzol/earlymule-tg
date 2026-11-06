@@ -10,31 +10,35 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from earlymule.evaluation.metrics import rank_by_score
+
 
 def daily_alerts(scores: pd.DataFrame, k: int, cooldown: int = 0) -> pd.DataFrame:
-    """Top-k accounts of each day, skipping accounts alerted in the previous `cooldown` days.
+    """Top-k accounts of each day, skipping accounts still in their cooldown.
 
     Args:
-        scores: acct_id, snapshot, score.
-        cooldown: days an alerted account stays reviewed; it can be alerted again on day d + cooldown.
-            0 = no suppression (the same account may take a slot every day).
+        scores: acct_id, snapshot, score; one call covers one split.
+        cooldown: an account alerted on day a can be alerted again on day t only if t - a >= cooldown.
+            The alert history starts empty at the first day of `scores`. 0 = no suppression.
     """
-    ranked = scores.sort_values("score", ascending=False, kind="stable")
+    ranked = rank_by_score(scores).reset_index(drop=True)
     if cooldown <= 0:
         return ranked.groupby("snapshot").head(k)
-    # Walk the days in order: the suppression on day d depends on the alerts of earlier days
+    # Walk the days in order: the suppression on day t depends on the alerts of earlier days.
+    # Rows are picked by position, so a non-unique input index cannot select the wrong rows.
     last_alert: dict[int, int] = {}
     picked = []
-    for day, g in ranked.groupby("snapshot", sort=True):
-        taken = []
-        for idx, acct in zip(g.index, g.acct_id.to_numpy()):
-            if day - last_alert.get(acct, -cooldown) >= cooldown:
-                taken.append(idx)
-                last_alert[acct] = day
-                if len(taken) == k:
+    days, accts = ranked.snapshot.to_numpy(), ranked.acct_id.to_numpy()
+    for day in np.unique(days):
+        taken = 0
+        for pos in np.flatnonzero(days == day):
+            if day - last_alert.get(accts[pos], day - cooldown) >= cooldown:
+                picked.append(pos)
+                last_alert[accts[pos]] = day
+                taken += 1
+                if taken == k:
                     break
-        picked.extend(taken)
-    return ranked.loc[picked]
+    return ranked.iloc[picked]
 
 
 def detection_table(scores: pd.DataFrame, mules: pd.DataFrame, k: int, cooldown: int = 0) -> pd.DataFrame:
@@ -45,7 +49,7 @@ def detection_table(scores: pd.DataFrame, mules: pd.DataFrame, k: int, cooldown:
         mules: acct_id, alert_id, onset_day, completion_day, first_illicit_outflow_day, typology of mule candidates.
     Returns:
         mules with detect_day (first alert on or after onset, NaN if none) and the flags by_completion,
-        before_completion, multi_day, can_precede_forwarding, before_forwarding.
+        before_completion, multi_day, can_precede_forwarding, rankable_before_forwarding, before_forwarding.
     """
     # 1. Days as float: with nullable Int64, comparisons against missing values give <NA>,
     #    which .mean() silently skips
@@ -64,6 +68,9 @@ def detection_table(scores: pd.DataFrame, mules: pd.DataFrame, k: int, cooldown:
     m["multi_day"] = m.completion_day.gt(m.onset_day)
     # Catching a mule before it forwards needs a day between its onset and its first outflow
     m["can_precede_forwarding"] = m.first_illicit_outflow_day.gt(m.onset_day)
+    # ... and a day in that gap on which the account is in the ranked population
+    gap = scored[scored.snapshot.ge(scored.onset_day) & scored.snapshot.lt(scored.first_illicit_outflow_day)]
+    m["rankable_before_forwarding"] = m.index.isin(gap.acct_id)
     m["before_forwarding"] = m.detect_day.lt(m.first_illicit_outflow_day)
     return m.reset_index()
 
@@ -97,6 +104,7 @@ def early_detection(scores: pd.DataFrame, mules: pd.DataFrame, k: int, cooldown:
         "distinct_alerted_accounts": int(alerts.acct_id.nunique()),
         "alert_precision_active_mule": round(float(precision), 4),
         "mules_can_precede_forwarding": len(elig),
+        "mules_rankable_before_forwarding": int(elig.rankable_before_forwarding.sum()),
         "detected_before_forwarding": share(elig.before_forwarding),
         "detected_before_forwarding_all_mules": share(t.before_forwarding),
         "detected_by_completion": share(t.by_completion),

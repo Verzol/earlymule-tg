@@ -186,3 +186,32 @@ def test_paired_bootstrap_difference():
     assert r["difference"] == 1.0 and r["difference_ci95"] == [1.0, 1.0]
     with pytest.raises(ValueError):
         paired_bootstrap_difference(a, b.iloc[:3], n=10, seed=0)
+
+
+def test_ties_break_by_account_id():
+    """Equal scores rank the lower acct_id first, whatever the row order."""
+    from earlymule.evaluation.early_detection import daily_alerts
+    scores = pd.DataFrame({"acct_id": [7, 3, 5], "snapshot": [0, 0, 0], "score": [1.0, 1.0, 0.5]})
+    assert daily_alerts(scores, k=1).acct_id.tolist() == [3]
+    assert daily_alerts(scores.iloc[::-1], k=1, cooldown=30).acct_id.tolist() == [3]
+
+
+def test_cooldown_ignores_duplicate_index():
+    """Concatenated frames with repeated index labels still give one alert per slot."""
+    from earlymule.evaluation.early_detection import daily_alerts
+    day0 = pd.DataFrame({"acct_id": [1, 2], "snapshot": [0, 0], "score": [0.9, 0.1]})
+    day1 = pd.DataFrame({"acct_id": [1, 2], "snapshot": [1, 1], "score": [0.9, 0.1]})
+    a = daily_alerts(pd.concat([day0, day1]), k=1, cooldown=30)
+    assert list(zip(a.snapshot, a.acct_id)) == [(0, 1), (1, 2)]
+
+
+def test_rankable_before_forwarding():
+    """A mule counts as rankable only if it is scored on a day between onset and first outflow."""
+    from earlymule.evaluation.early_detection import detection_table
+    # Mule 1 is scored on day 5 (onset) before its outflow on day 6; mule 2 only from its outflow day on
+    scores = pd.DataFrame({"acct_id": [1, 1, 2, 9], "snapshot": [5, 6, 6, 5], "score": [0.1, 0.2, 0.3, 0.9]})
+    mules = pd.DataFrame({"acct_id": [1, 2], "alert_id": [10, 11], "onset_day": [5, 5], "completion_day": [6, 6],
+                          "first_illicit_outflow_day": [6, 6], "typology": ["a", "b"]})
+    t = detection_table(scores, mules, k=1).set_index("acct_id")
+    assert t.can_precede_forwarding.tolist() == [True, True]
+    assert t.rankable_before_forwarding.tolist() == [True, False]

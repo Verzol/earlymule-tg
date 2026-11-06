@@ -2,7 +2,7 @@
 
 Version 0.2, 2026-11-05. Fixes how every model in the thesis is scored, so that LightGBM, the graph baselines and EarlyMule-TG are compared under the same rules. The dataset, labels and allowed columns are in `docs/data_spec.md`. Items marked **proposal** wait for the advisor (section 8). Most rules are already implemented and tested; section 9 lists what is not yet.
 
-v0.2 answers a review of v0.1: finished mules now stay in the ranking, the alert budget counts new accounts with a 30-day cooldown, the primary metric is detection before the first forwarding, and model comparisons use a paired case bootstrap. All logged runs were redone under these rules.
+v0.2 answers two reviews of v0.1: finished mules now stay in the ranking, the alert budget counts new accounts with a 30-day cooldown, the primary metric is detection before the first forwarding, model comparisons use a paired case bootstrap, and ties and the start of the alert history follow fixed rules. All logged runs were redone under these rules.
 
 ## 1. Task
 
@@ -46,13 +46,17 @@ Reason: case members were drawn from active accounts, so over all accounts activ
 
 Day resolution throughout: an alert on day d uses transfers up to the end of day d, and within a day the order of transfers is unknown.
 
-**Alerts.** Each day the K highest-scored accounts that were not alerted in the previous 30 days are alerted (budget unit: new accounts per day). An alerted account is treated as reviewed: it cannot be alerted again on days d + 1 to d + 29, and its slot goes to the next account. 30 days equals the longest feature window. A mule alerted shortly before its onset is therefore suppressed during its case and can be missed, as in practice.
+**Alerts.** Each day t the K highest-ranked accounts that are out of cooldown are alerted (budget unit: new accounts per day). An account last alerted on day a is out of cooldown on day t when t − a ≥ 30: alerted on day d, it is skipped on days d + 1 to d + 29 and can be alerted again from day d + 30; its slot goes to the next account. 30 days equals the longest feature window. A mule alerted shortly before its onset is therefore suppressed during its case and can be missed, as in practice.
+
+**Ranking order.** Score descending, ties broken by `acct_id` ascending, the same for every model and every top-K metric (`rank_by_score` in `src/earlymule/evaluation/metrics.py`). In the current LightGBM test scores no day has a tie between ranks 10 and 11, so the rule does not change any reported number.
+
+**Start of the alert history.** The cooldown history starts empty on the first day of each split (day 432 for validation, day 540 for test), so every split is scored on its own and every model under the same condition. Sensitivity (seed 0, K = 10): carrying over the validation alerts of the same model changes 50 of the 1,800 test alerts; detected before forwarding stays 0.763, before completion moves from 0.653 to 0.648, alert precision from 0.119 to 0.117.
 
 **Which mules count.** Mules whose onset falls in the test period and who are in the ranked population on at least one active day (219 in the current test set).
 
 | Metric | Definition | Mules counted | Unit |
 |---|---|---|---|
-| **Detected before forwarding** (primary) | First alert d on or after onset with d < first illicit outflow day | Mules whose first outflow is after their onset day (173) | share of mules |
+| **Detected before forwarding** (primary) | First alert d on or after onset with d < first illicit outflow day | Mules whose first outflow is after their onset day (173); also reported: how many of them are in the ranked population on at least one day before the first outflow (173) | share of mules |
 | Detected before completion | Same, d < completion day | All counted mules; also multi-day mules only (179) | share of mules |
 | Detected by completion | Same, d ≤ completion day | All counted mules | share of mules |
 | Time to detect (TTD) | d − onset for the first alert | Mules detected by completion; median | days |
@@ -63,7 +67,7 @@ Day resolution throughout: an alert on day d uses transfers up to the end of day
 | PR-AUC | Average precision over all labelled (account, day) rows, pooled | — | 0–1; random = mule rate |
 | Recall@K (weekly) | Share of positives in the top K = 100 of their own snapshot; no cooldown | — | share of positives |
 
-**Why "before forwarding" is primary.** A mule caught before its first illicit outflow can still be stopped before the money leaves; one caught later, but before completion, may already have passed most of it on. The metric needs at least one day between onset and first outflow; mules that receive and forward on the same day, and the 40 cycle initiators (they send first and receive the loop's return later, so onset is their first outflow), cannot be caught before forwarding at day resolution. They still count in the other detection metrics, and every detection share is also broken down by typology.
+**Why "before forwarding" is primary.** A mule caught before its first illicit outflow can still be stopped before the money leaves; one caught later, but before completion, may already have passed most of it on. The metric needs at least one day between onset and first outflow; mules that receive and forward on the same day, and the 40 cycle initiators (they send first and receive the loop's return later, so onset is their first outflow), cannot be caught before forwarding at day resolution. They still count in the other detection metrics; detection before forwarding and by completion are also broken down by typology. A mule can also miss the chance because it only joins the ranked population (20 transfers) after its first outflow; each run reports this count so that a population limit is not read as a model error. In the current test set all 173 are rankable before their first outflow.
 
 **Alert budget.** K = 5, 10, 20 and 50 new accounts per day are all reported; **K = 10 is the headline (proposal).** About 1.2 mules start per test day (219 in 180 days), and a case lasts at most 19 days, so under the cooldown each mule can be hit by at most one alert: alert precision is capped near 222 / 1,800 = 0.12 at K = 10. Precision is therefore reported but not used to compare models.
 
@@ -81,7 +85,7 @@ Day resolution throughout: an alert on day d uses transfers up to the end of day
 2. Inputs only from the columns allowed in `docs/data_spec.md` section 6 (checked in code by `src/earlymule/data/leakage.py`).
 3. Every choice (features, hyperparameters, training population, early stopping) is made on validation.
 4. Every run is logged in `experiments/experiments.csv` with commit, seed, config and metrics; a run from uncommitted code is marked dirty and not reported.
-5. Scores are ranked as log-odds or raw scores, not saturated probabilities, so ties do not decide the top K.
+5. Scores are ranked as log-odds or raw scores, not saturated probabilities, which avoids most ties; remaining ties follow the ranking order above.
 
 **Current reference (LightGBM, daily, test, 3 seeds, K = 10, 30-day cooldown):** detected before forwarding 0.761 ± 0.003 (seed 0: 0.763, interval [0.697, 0.831]); before completion 0.651 (multi-day mules 0.797); by completion 0.959; PR-AUC 0.650 ± 0.004; alert precision 0.118 (ceiling about 0.12); 30% of alerts on hard negatives; about 1,660 distinct accounts among 1,800 alerts; median TTD 0 days, lead time 2 days; 1 mule alerted in the 7 days before its onset. Before forwarding by typology (seed 0): M3 and M4 0.86, M1 0.78, M2 0.76, cycle 0.42.
 

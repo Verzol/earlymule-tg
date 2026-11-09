@@ -1,0 +1,4 @@
+# Validation check of the two excluded features (n_tx_hist, days_since_first_tx). Run: python -m earlymule.models.daily_scoring --config daily_all_features.yaml
+base: daily.yaml
+run_name: lightgbm_daily_all_features
+exclude_features: []

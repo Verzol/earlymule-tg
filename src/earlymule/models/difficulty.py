@@ -19,7 +19,7 @@ from earlymule.data.splits import chronological_splits, snapshot_days, snapshot_
 from earlymule.evaluation.metrics import evaluate
 from earlymule.evaluation.uncertainty import bootstrap_ranking
 from earlymule.experiment_log import log_run, set_seed
-from earlymule.models.tabular import build_split, fit, load_config, load_inputs, model_features, seed_from_cli
+from earlymule.models.tabular import build_split, fit, config_from_cli, load_inputs, model_features
 
 
 def populations(frame: pd.DataFrame, other_members: pd.Index, regular_min_tx: int) -> dict[str, pd.Series]:
@@ -62,7 +62,7 @@ def score_populations(frame: pd.DataFrame, score: np.ndarray, masks: dict, cfg: 
 def main() -> None:
     """Build the weekly split once, score every configuration, log one row each."""
     start = time.time()
-    cfg = seed_from_cli(load_config("difficulty.yaml"))
+    cfg = config_from_cli("difficulty.yaml")
     set_seed(cfg["seed"])
     rng = np.random.default_rng(cfg["seed"])
 

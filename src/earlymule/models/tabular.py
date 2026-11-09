@@ -2,7 +2,7 @@
 
 Reads the configured dataset (configs/paths.yaml) and configs/lightgbm.yaml, scores the validation
 and test snapshots, and appends one row to experiments/experiments.csv.
-Run: python -m earlymule.models.tabular [--seed N]
+Run: python -m earlymule.models.tabular [--seed N] [--config lightgbm.yaml]
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ from earlymule.data.leakage import input_columns
 from earlymule.data.splits import chronological_splits, snapshot_days, snapshot_labels
 from earlymule.evaluation.metrics import evaluate
 from earlymule.evaluation.uncertainty import bootstrap_ranking
-from earlymule.experiment_log import log_run, set_seed
+from earlymule.experiment_log import log_run, run_dir, set_seed
 from earlymule.features.point_in_time import load_transactions, pair_first_day, snapshot_features
 
 META = ["acct_id", "snapshot", "label", "typology"]
@@ -56,7 +56,8 @@ def load_inputs() -> dict:
 
 def build_split(inputs: dict, label_fn: Callable[[int], pd.Series], days, cfg, negative_rate=1.0,
                 rng=None, keep: Callable[[pd.DataFrame], pd.Series] | None = None,
-                keep_unlabeled: bool = False) -> pd.DataFrame:
+                keep_unlabeled: bool = False,
+                reduce: Callable[[pd.DataFrame], pd.DataFrame] | None = None) -> pd.DataFrame:
     """Stack the snapshots of one split into rows (acct_id, snapshot, features, label, typology).
 
     Args:
@@ -65,6 +66,8 @@ def build_split(inputs: dict, label_fn: Callable[[int], pd.Series], days, cfg, n
         keep: optional row filter on the feature table (e.g. regular accounts only).
         keep_unlabeled: keep NaN-label rows (scoring splits). A bank cannot tell a finished mule apart,
             so it must stay in the ranking and can take alert slots; metrics skip its label.
+        reduce: optional per-day map applied before stacking (e.g. score and drop the features),
+            so all-account daily splits fit in memory.
     """
     accounts, frames = inputs["accounts"], []
     for t in days:
@@ -80,7 +83,8 @@ def build_split(inputs: dict, label_fn: Callable[[int], pd.Series], days, cfg, n
         f["label"] = label[ids].to_numpy()
         f["snapshot"] = t
         f["typology"] = inputs["mules"].typology.reindex(ids).where(f.label.eq(1)).to_numpy()
-        frames.append(f[keep(f)] if keep else f)
+        f = f[keep(f)] if keep else f
+        frames.append(reduce(f) if reduce else f)
     return pd.concat(frames).rename_axis("acct_id").reset_index()
 
 
@@ -90,26 +94,30 @@ def model_features(frame: pd.DataFrame, cfg: dict) -> list[str]:
 
 
 def fit(train: pd.DataFrame, val: pd.DataFrame, features: list[str], cfg: dict) -> lgb.LGBMClassifier:
-    """LightGBM with early stopping on validation PR-AUC (labelled validation rows only)."""
-    model = lgb.LGBMClassifier(random_state=cfg["seed"], **cfg["lightgbm"])
+    """LightGBM with early stopping on validation PR-AUC only (labelled validation rows)."""
+    # PR-AUC is the only tracked metric: with the default binary_logloss also tracked, early stopping
+    # halted on whichever stalled first (weekly seed 1 stopped at round 3)
+    model = lgb.LGBMClassifier(random_state=cfg["seed"], **{**cfg["lightgbm"], "metric": "average_precision"})
     val = val[val.label.notna()]
     model.fit(train[features], train.label, eval_set=[(val[features], val.label)],
-              eval_metric="average_precision",
-              callbacks=[lgb.early_stopping(cfg["early_stopping_rounds"], verbose=False)])
+              callbacks=[lgb.early_stopping(cfg["early_stopping_rounds"], first_metric_only=True, verbose=False)])
     return model
 
 
-def seed_from_cli(cfg: dict) -> dict:
-    """Override the config seed with --seed, for repeated runs."""
+def config_from_cli(default: str) -> dict:
+    """Load configs/<--config> (default `default`) and override its seed with --seed, for repeated runs."""
     parser = argparse.ArgumentParser()
-    parser.add_argument("--seed", type=int, default=cfg["seed"])
-    return {**cfg, "seed": parser.parse_args().seed}
+    parser.add_argument("--config", default=default)
+    parser.add_argument("--seed", type=int)
+    args = parser.parse_args()
+    cfg = load_config(args.config)
+    return {**cfg, "seed": cfg["seed"] if args.seed is None else args.seed}
 
 
 def main() -> None:
     """Build the splits, train LightGBM, evaluate on validation and test, log the run."""
     start = time.time()
-    cfg = seed_from_cli(load_config("lightgbm.yaml"))
+    cfg = config_from_cli("lightgbm.yaml")
     set_seed(cfg["seed"])
     rng = np.random.default_rng(cfg["seed"])
 
@@ -142,7 +150,9 @@ def main() -> None:
     config = {**cfg, "splits": {n: [s.first_day, s.last_day] for n, s in splits.items()},
               "snapshots": {n: len(d) for n, d in days.items()}, "train_rows": len(data["train"]),
               "feature_names": features}
-    log_run(cfg.get("run_name", "lightgbm_weekly"), config=config, seed=cfg["seed"], metrics=metrics)
+    run_name = cfg.get("run_name", "lightgbm_weekly")
+    model.booster_.save_model(str(run_dir(run_name, cfg["seed"]) / "model.txt"))
+    log_run(run_name, config=config, seed=cfg["seed"], metrics=metrics)
     print(json.dumps(metrics, indent=1))
     gain = pd.Series(model.booster_.feature_importance("gain"), index=features)
     print("top features (gain share):\n" + (gain / gain.sum()).sort_values(ascending=False).head(12).round(3).to_string())

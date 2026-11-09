@@ -215,3 +215,46 @@ def test_rankable_before_forwarding():
     t = detection_table(scores, mules, k=1).set_index("acct_id")
     assert t.can_precede_forwarding.tolist() == [True, True]
     assert t.rankable_before_forwarding.tolist() == [True, False]
+
+
+def test_fit_stops_on_pr_auc_only():
+    """Early stopping tracks validation PR-AUC alone and keeps its best round."""
+    from earlymule.models.tabular import fit
+    rng = np.random.default_rng(0)
+    x = rng.normal(size=(3000, 4))
+    y = (x[:, 0] + rng.normal(scale=2, size=3000) > 2.5).astype(float)
+    frame = pd.DataFrame(x, columns=list("abcd")).assign(label=y)
+    cfg = {"seed": 0, "early_stopping_rounds": 20,
+           "lightgbm": {"n_estimators": 400, "learning_rate": 0.1, "num_leaves": 7, "verbose": -1}}
+    model = fit(frame.iloc[:2000], frame.iloc[2000:], list("abcd"), cfg)
+    curve = model.evals_result_["valid_0"]
+    assert list(curve) == ["average_precision"]
+    assert model.best_iteration_ == int(np.argmax(curve["average_precision"])) + 1
+
+
+def test_threshold_rule_detects_first_crossing():
+    """The plan's rule alerts every account-day at or above the validation threshold; no budget, no cooldown."""
+    from earlymule.evaluation.early_detection import early_detection, threshold_alerts, threshold_on_validation
+    val = pd.DataFrame({"label": [1, 1, 0, 0, 0, np.nan], "score": [0.9, 0.6, 0.7, 0.2, 0.1, 5.0]})
+    # F1 is best at 0.6 (both positives, one false alert); the unlabelled row is ignored
+    assert threshold_on_validation(val) == 0.6
+    scores = pd.DataFrame({"acct_id": [1, 2, 1, 2, 1, 2], "snapshot": [5, 5, 6, 6, 7, 7],
+                           "score": [0.7, 0.8, 0.7, 0.1, 0.2, 0.9]})
+    mules = pd.DataFrame({"acct_id": [1], "onset_day": [5], "completion_day": [7], "first_illicit_outflow_day": [6],
+                          "typology": ["a"]})
+    alerts = threshold_alerts(scores, 0.6)
+    r = early_detection(scores, mules, None, alerts=alerts)
+    # Mule 1 crosses on day 5, before its outflow on day 6; 4 alerts over 3 days, 2 of them on the active mule
+    assert (r["detected_before_forwarding"], r["alerts"], r["alerts_per_day"]) == (1.0, 4, 1.33)
+    assert r["alert_precision_active_mule"] == 0.5
+
+
+def test_summary_skips_dirty_runs_and_repeated_seeds():
+    """Only clean runs of the latest commit count, each seed once with its latest row."""
+    from earlymule.evaluation.summarize_runs import summarize
+    m = lambda v: {"test": {"all": {"pr_auc": v}}}  # noqa: E731
+    log = pd.DataFrame({"run_name": ["w"] * 5, "commit": ["a", "b", "b", "b", "b"],
+                        "dirty": [False, False, False, True, False], "seed": [0, 0, 0, 1, 1],
+                        "metrics": [m(0.1), m(0.2), m(0.4), m(0.9), m(0.6)]})
+    table = summarize(log, "w")
+    assert table.loc["test PR-AUC (all)", "mean"] == 0.5 and table.loc["test PR-AUC (all)", "seeds"] == 2

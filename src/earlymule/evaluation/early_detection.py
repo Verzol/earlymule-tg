@@ -2,13 +2,16 @@
 
 Day resolution: an alert on day d uses transfers up to the end of day d. Detection on the completion day is
 "by completion", strictly earlier is "before completion"; strictly before the first illicit outflow day is
-"before forwarding".
+"before forwarding". The research plan's alternative, a score threshold chosen on validation, is
+threshold_on_validation + threshold_alerts.
 """
 
 from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+
+from sklearn.metrics import precision_recall_curve
 
 from earlymule.evaluation.metrics import rank_by_score
 
@@ -41,12 +44,28 @@ def daily_alerts(scores: pd.DataFrame, k: int, cooldown: int = 0) -> pd.DataFram
     return ranked.iloc[picked]
 
 
-def detection_table(scores: pd.DataFrame, mules: pd.DataFrame, k: int, cooldown: int = 0) -> pd.DataFrame:
+def threshold_on_validation(scores: pd.DataFrame) -> float:
+    """Score threshold with the best F1 on labelled validation rows (the research plan's alert rule)."""
+    rows = scores[scores.label.notna()]
+    precision, recall, thresholds = precision_recall_curve(rows.label, rows.score)
+    f1 = 2 * precision * recall / np.maximum(precision + recall, 1e-12)
+    # The last precision/recall pair has no threshold
+    return float(thresholds[np.argmax(f1[:-1])])
+
+
+def threshold_alerts(scores: pd.DataFrame, theta: float) -> pd.DataFrame:
+    """Every account-day with score >= theta; no daily budget and no cooldown."""
+    return scores[scores.score.ge(theta)]
+
+
+def detection_table(scores: pd.DataFrame, mules: pd.DataFrame, k: int, cooldown: int = 0,
+                    alerts: pd.DataFrame | None = None) -> pd.DataFrame:
     """One row per mule whose case starts in the scored period and who was scored while active.
 
     Args:
         scores: acct_id, snapshot, score for every scored account-day (finished mules included).
         mules: acct_id, alert_id, onset_day, completion_day, first_illicit_outflow_day, typology of mule candidates.
+        alerts: precomputed alert rows (e.g. threshold_alerts); default daily_alerts(scores, k, cooldown).
     Returns:
         mules with detect_day (first alert on or after onset, NaN if none) and the flags by_completion,
         before_completion, multi_day, can_precede_forwarding, rankable_before_forwarding, before_forwarding.
@@ -61,7 +80,8 @@ def detection_table(scores: pd.DataFrame, mules: pd.DataFrame, k: int, cooldown:
     m = m.loc[m.index.isin(scored.acct_id[scored.snapshot.between(scored.onset_day, scored.completion_day)])]
 
     # 2. First alert on or after onset; an alert before onset can suppress the mule under a cooldown
-    hit = daily_alerts(scores, k, cooldown).merge(m, left_on="acct_id", right_index=True)
+    alerts = daily_alerts(scores, k, cooldown) if alerts is None else alerts
+    hit = alerts.merge(m, left_on="acct_id", right_index=True)
     m["detect_day"] = hit[hit.snapshot.ge(hit.onset_day)].groupby("acct_id").snapshot.min().reindex(m.index)
     m["by_completion"] = m.detect_day.le(m.completion_day)
     m["before_completion"] = m.detect_day.lt(m.completion_day)
@@ -75,19 +95,20 @@ def detection_table(scores: pd.DataFrame, mules: pd.DataFrame, k: int, cooldown:
     return m.reset_index()
 
 
-def early_detection(scores: pd.DataFrame, mules: pd.DataFrame, k: int, cooldown: int = 0,
-                    other_members: pd.Index | None = None) -> dict:
-    """Detection timing of mules under a budget of k new alerts per day.
+def early_detection(scores: pd.DataFrame, mules: pd.DataFrame, k: int | None, cooldown: int = 0,
+                    other_members: pd.Index | None = None, alerts: pd.DataFrame | None = None) -> dict:
+    """Detection timing of mules under a budget of k new alerts per day, or under precomputed alerts.
 
     Args:
         cooldown: see daily_alerts.
+        alerts: precomputed alert rows (then k is None and only reported).
         other_members: alert members that are not mules (sources, exits, one-sided hubs), the hard negatives.
     Returns:
         counts and shares; TTD and lead time in days (medians over mules detected by completion).
     """
     # 1. Per-mule outcomes, and the daily alerts
-    t = detection_table(scores, mules, k, cooldown)
-    alerts = daily_alerts(scores, k, cooldown)
+    alerts = daily_alerts(scores, k, cooldown) if alerts is None else alerts
+    t = detection_table(scores, mules, k, cooldown, alerts)
     det = t[t.by_completion]
     elig = t[t.can_precede_forwarding]
     hit = alerts.merge(t.set_index("acct_id"), left_on="acct_id", right_index=True)
@@ -101,6 +122,7 @@ def early_detection(scores: pd.DataFrame, mules: pd.DataFrame, k: int, cooldown:
     share = lambda s: round(float(s.mean()), 4) if len(s) else np.nan  # noqa: E731
     out = {
         "k_per_day": k, "cooldown_days": cooldown, "mules": len(t), "alerts": len(alerts),
+        "alerts_per_day": round(len(alerts) / scores.snapshot.nunique(), 2),
         "distinct_alerted_accounts": int(alerts.acct_id.nunique()),
         "alert_precision_active_mule": round(float(precision), 4),
         "mules_can_precede_forwarding": len(elig),

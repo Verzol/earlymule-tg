@@ -64,6 +64,17 @@ def git_state() -> tuple[str, bool]:
     return commit, bool(dirty_paths(status))
 
 
+def run_dir(run_name: str, seed: int) -> Path:
+    """Output folder of one run: <experiments>/runs/<run_name>/<commit>/seed<N> (git-ignored).
+
+    The commit is in the path so a rerun after a code change never overwrites the files of a logged run.
+    """
+    commit, dirty = git_state()
+    d = load_paths().experiments / "runs" / run_name / (commit + ("-dirty" if dirty else "")) / f"seed{seed}"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
 def log_run(
     run_name: str,
     config: dict,

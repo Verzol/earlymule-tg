@@ -27,8 +27,16 @@ def _get(d: dict, path: tuple):
 
 
 def daily_rows(metrics: dict) -> dict:
-    """Flatten the daily metrics: ranking plus each alert budget."""
+    """Flatten the daily metrics: ranking, each alert budget, the threshold rule and all-account results."""
     out = {"test PR-AUC": _get(metrics, ("test", "ranking", "pr_auc"))}
+    th = _get(metrics, ("test", "threshold")) or {}
+    for key in ["detected_before_forwarding", "detected_before_completion", "alerts_per_day",
+                "alert_precision_active_mule"]:
+        if key in th:
+            out[f"threshold {key}"] = th[key]
+    out["all accounts PR-AUC"] = _get(metrics, ("test_all_accounts", "ranking", "pr_auc"))
+    for e in _get(metrics, ("test_all_accounts", "early_detection")) or []:
+        out[f"all accounts K={e['k_per_day']} before forwarding"] = e["detected_before_forwarding"]
     for e in _get(metrics, ("test", "early_detection")) or []:
         k = e["k_per_day"]
         # Runs before the protocol review (2026-11-05) lack the forwarding metric and used "detected_early"
@@ -42,9 +50,15 @@ def daily_rows(metrics: dict) -> dict:
 
 
 def summarize(log: pd.DataFrame, run_name: str) -> pd.DataFrame:
-    """Mean and sd over the latest commit's runs of run_name, one row per metric."""
-    runs = log[log.run_name.eq(run_name)]
-    runs = runs[runs.commit.eq(runs.commit.iloc[-1])]
+    """Mean and sd over the latest clean commit's runs of run_name, one row per metric.
+
+    Runs from uncommitted code are left out (protocol rule); a seed rerun on the same commit counts once,
+    with its latest row.
+    """
+    runs = log[log.run_name.eq(run_name) & ~log.dirty.astype(str).str.lower().eq("true")]
+    if runs.empty:
+        return pd.DataFrame()
+    runs = runs[runs.commit.eq(runs.commit.iloc[-1])].drop_duplicates("seed", keep="last")
     flat = [daily_rows(m) if "ranking" in m.get("test", {}) else {lab: _get(m, p) for lab, p in WEEKLY}
             for m in runs.metrics]
     table = pd.DataFrame(flat, index=runs.seed.to_numpy()).dropna(axis=1, how="all")

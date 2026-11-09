@@ -1,0 +1,46 @@
+<!-- Editable diagram: practical objective and experimental output; the money flow is illustrative. -->
+<svg viewBox="0 0 1360 650" xmlns="http://www.w3.org/2000/svg">
+  <title>Mule-account detection and intended application</title>
+  <desc>An illustrative flow passes from a sender through an intermediary to a recipient. Observed transfers feed account scoring and daily alerts, with analyst review as the intended application.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path class="arrow-accent" d="M1 1 L9 5 L1 9"/></marker>
+  </defs>
+  <rect class="zone-c" x="20" y="20" width="1320" height="250" rx="14"/>
+  <text class="system-label" x="45" y="58" style="font-size:24px">Illustrative money flow: detect the intermediary account</text>
+  <g text-anchor="middle">
+    <rect class="box" x="70" y="90" width="280" height="105" rx="12"/>
+    <text class="system-label" x="210" y="130" style="font-size:25px">Sender account</text>
+    <text class="small" x="210" y="165" style="font-size:21px">Sends only here</text>
+    <rect class="box-accent" x="490" y="90" width="380" height="105" rx="12"/>
+    <text class="on-accent" x="680" y="130" style="font-size:25px;font-weight:800">Intermediary account</text>
+    <text class="on-accent" x="680" y="165" style="font-size:21px">Receives, then forwards</text>
+    <rect class="box" x="1010" y="90" width="280" height="105" rx="12"/>
+    <text class="system-label" x="1150" y="130" style="font-size:25px">Recipient account</text>
+    <text class="small" x="1150" y="165" style="font-size:21px">Receives only here</text>
+  </g>
+  <g class="flow" marker-end="url(#arrow)"><path d="M350 143H490"/><path d="M870 143H1010"/></g>
+  <text class="label" x="420" y="120" text-anchor="middle" style="font-size:21px">Day 1</text>
+  <text class="label" x="940" y="120" text-anchor="middle" style="font-size:21px">Day 3</text>
+  <text class="label" x="680" y="239" text-anchor="middle" style="font-size:22px">Goal: alert at the end of day 1 or 2, before the first forwarding on day 3.</text>
+  <rect class="zone-b" x="20" y="305" width="1320" height="320" rx="14"/>
+  <text class="system-label" x="45" y="345" style="font-size:24px">Intended application workflow</text>
+  <g text-anchor="middle">
+    <rect class="box" x="50" y="385" width="265" height="135" rx="12"/>
+    <text class="system-label" x="182" y="425" style="font-size:24px">Observed transfers</text>
+    <text class="small" x="182" y="464" style="font-size:20px">Synthetic data</text>
+    <text class="small" x="182" y="493" style="font-size:20px">in current experiments</text>
+    <rect class="box-outline" x="380" y="385" width="265" height="135" rx="12"/>
+    <text class="system-label" x="512" y="425" style="font-size:24px">Account risk scoring</text>
+    <text class="small t-emerald" x="512" y="478" style="font-size:20px">LightGBM implemented</text>
+    <rect class="box-outline" x="710" y="385" width="265" height="135" rx="12"/>
+    <text class="system-label" x="842" y="425" style="font-size:24px">Prioritized alerts</text>
+    <text class="small t-emerald" x="842" y="464" style="font-size:20px">Daily selection</text>
+    <text class="small t-emerald" x="842" y="493" style="font-size:20px">logic implemented</text>
+    <rect class="box-build" x="1040" y="385" width="265" height="135" rx="12"/>
+    <text class="system-label" x="1172" y="425" style="font-size:24px">Analyst review</text>
+    <text class="small t-rose" x="1172" y="464" style="font-size:20px">Intended application</text>
+    <text class="small t-rose" x="1172" y="493" style="font-size:20px">Not integrated yet</text>
+  </g>
+  <g class="flow" marker-end="url(#arrow)"><path d="M315 452H380"/><path d="M645 452H710"/><path d="M975 452H1040"/></g>
+  <text class="label" x="680" y="577" text-anchor="middle" style="font-size:22px">Evaluation uses simulation labels to check alert accuracy and timing.</text>
+</svg>

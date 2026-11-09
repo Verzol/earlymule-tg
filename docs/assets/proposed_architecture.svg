@@ -1,0 +1,49 @@
+<!-- Editable proposed research architecture with implementation status on each module. -->
+<svg viewBox="0 0 1320 1000" xmlns="http://www.w3.org/2000/svg">
+  <title>Proposed EarlyMule-TG research architecture</title>
+  <desc>Observed transfers feed a temporal graph branch and a windowed behavior branch with role and role-transition encoders. Fusion combines graph, current role and role change into account risk scores. Window aggregates exist; the learned graph and role modules are proposed.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path class="arrow-accent" d="M1 1 L9 5 L1 9"/></marker>
+  </defs>
+  <g class="flow" marker-end="url(#arrow)" fill="none">
+    <path d="M565 140V175H280V210"/>
+    <path d="M755 140V175H1040V210"/>
+    <path d="M280 320V390"/>
+    <path d="M1040 320V390"/>
+    <path d="M1040 500V570"/>
+    <path d="M280 500V790H520"/>
+    <path d="M820 445H700V745"/>
+    <path d="M1040 680V790H800"/>
+    <path d="M660 835V880"/>
+  </g>
+  <g text-anchor="middle">
+    <rect class="box-outline" x="440" y="30" width="440" height="110" rx="12"/>
+    <text class="system-label" x="660" y="72" style="font-size:26px">Transfers up to scoring day</text>
+    <text class="small t-emerald" x="660" y="110" style="font-size:22px">Simulation data available</text>
+    <rect class="box-build" x="60" y="210" width="440" height="110" rx="12"/>
+    <text class="system-label" x="280" y="247" style="font-size:26px">Time-aware</text>
+    <text class="system-label" x="280" y="278" style="font-size:26px">transaction graph</text>
+    <text class="small t-rose" x="280" y="307" style="font-size:21px">Not implemented</text>
+    <rect class="box-build" x="60" y="390" width="440" height="110" rx="12"/>
+    <text class="system-label" x="280" y="432" style="font-size:26px">Temporal graph encoder</text>
+    <text class="small t-rose" x="280" y="470" style="font-size:22px">TGN planned; not implemented</text>
+    <rect class="box-outline" x="820" y="210" width="440" height="110" rx="12"/>
+    <text class="system-label" x="1040" y="252" style="font-size:26px">1-, 7- and 30-day statistics</text>
+    <text class="small t-emerald" x="1040" y="290" style="font-size:22px">Window aggregates implemented</text>
+    <rect class="box-build" x="820" y="390" width="440" height="110" rx="12"/>
+    <text class="system-label" x="1040" y="432" style="font-size:26px">Behavioral role encoder</text>
+    <text class="small t-rose" x="1040" y="470" style="font-size:22px">Not implemented</text>
+    <rect class="box-build" x="820" y="570" width="440" height="110" rx="12"/>
+    <text class="system-label" x="1040" y="612" style="font-size:26px">Role-transition encoder</text>
+    <text class="small t-rose" x="1040" y="650" style="font-size:22px">Uses earlier states; not implemented</text>
+    <rect class="box-build" x="520" y="745" width="280" height="90" rx="12"/>
+    <text class="system-label" x="660" y="782" style="font-size:24px">Feature fusion</text>
+    <text class="small t-rose" x="660" y="814" style="font-size:21px">Not implemented</text>
+    <rect class="box-accent" x="470" y="880" width="380" height="90" rx="12"/>
+    <text class="on-accent" x="660" y="917" style="font-size:25px;font-weight:800">Per-account risk score</text>
+    <text class="on-accent" x="660" y="950" style="font-size:21px">Proposed model output</text>
+  </g>
+  <text class="label" x="266" y="645" text-anchor="end" style="font-size:23px">Transaction relations</text>
+  <text class="label" x="688" y="620" text-anchor="end" style="font-size:23px">Current role</text>
+  <text class="label" x="1070" y="748" style="font-size:23px">Role transition</text>
+</svg>

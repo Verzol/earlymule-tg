@@ -37,6 +37,9 @@ configs/local*.yaml
 # Local working files; never commit
 /.local/
 
+# External personal skills checkout; never stage or commit in this repository
+/verzol-ai-skills/
+
 # OS / editor
 .DS_Store
 Thumbs.db

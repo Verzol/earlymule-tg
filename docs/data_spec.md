@@ -1,6 +1,6 @@
-# Data Spec v0.1: AMLSim-Mule dataset `80K-earlymule-mule`
+# Data Spec v0.2: AMLSim-Mule dataset `80K-earlymule-mule`
 
-Version 0.1, 2026-11-04. Describes the dataset used for every experiment from 2026-11-03 on, how mule labels are derived, which columns a model may use, and the known limitations. It is the reference for the weekly reports. Every number can be reproduced with the commands in section 11.
+Version 0.2, 2026-11-09 (v0.1: 2026-11-04). Describes the dataset used for every experiment from 2026-11-03 on, how mule labels are derived, which columns a model may use, and the known limitations. It is the reference for the weekly reports. Every number can be reproduced with the commands in section 11.
 
 ## 1. Summary
 
@@ -10,14 +10,14 @@ Version 0.1, 2026-11-04. Describes the dataset used for every experiment from 20
 | Configuration | `AMLSim/conf_80K-earlymule-mule.json`, random seed 0 |
 | Period | 720 days, day 0 = 2017-01-01, last day 719 = 2018-12-21 |
 | Time resolution | One day; every transfer is stamped 00:00 |
-| Accounts | 96,344 (one bank); 31,560 make at least one transfer, 15,416 at least 20 |
+| Accounts | 96,344 (one bank); 31,560 take part in at least one transfer (sent or received), 15,416 in at least 20 |
 | Transfers | 1,789,235, of which 3,059 illicit |
 | Laundering cases (alerts) | 500 |
 | Mule candidates (positive labels) | 942 accounts, 0.98% of all accounts |
 
 ## 2. How the data is generated
 
-**Accounts and normal behaviour.** Six blocks of about 16,000 accounts with an initial balance drawn from 50,000–100,000. 24,000 normal models (4,000 each of single, fan-in, fan-out, forward, mutual, periodical) make the normal transfers; 99.98% of normal amounts lie between 100 and 1,000 (smaller ones occur when a balance runs low).
+**Accounts and normal behaviour.** Six blocks of about 16,000 accounts with an initial balance drawn from 50,000–100,000 (before change 5 below). 24,000 normal models (4,000 each of single, fan-in, fan-out, forward, mutual, periodical) make the normal transfers; 99.98% of normal amounts lie between 100 and 1,000 (smaller ones occur when a balance runs low).
 
 **Changes to AMLSim.** The original simulator could not produce the data the thesis needs. Each change is documented with before and after numbers in `AMLSim/EARLYMULE-TG.md`.
 
@@ -29,7 +29,7 @@ Version 0.1, 2026-11-04. Describes the dataset used for every experiment from 20
 | 4 | No typology in which an intermediary both receives and forwards illicit money (fan-in and fan-out hubs are one-sided) | New layered mule typologies M1–M4 (section 3) |
 | 5 | Accounts that send on two or more normal models ran out of money mid-simulation (62–99% of them), so a mule placed there could not forward | Multiply the initial balance of every such account by (number of models + 1) |
 
-For change 5 a first approach, excluding those accounts from cases, was tried and rejected: mules then never came from busy accounts, and outgoing activity alone separated them (ROC-AUC 0.68 among regular accounts, against 0.53 before).
+For change 5 a first approach, excluding those accounts from cases, was tried and rejected: mules then never came from busy accounts, and outgoing activity alone separated them (ROC-AUC 0.67 among regular accounts, against 0.53 before).
 
 ## 3. Laundering cases
 
@@ -110,18 +110,18 @@ Features at day t use only transfers dated on or before t. Illicit transfers are
 |---|---|
 | Split | By day: train 0–431, validation 432–539, test 540–719 (60/15/25%) |
 | Feature windows | 1, 7 and 30 days, end of day t (advisor, 2026-11-02) |
-| Scored population | Regular accounts: at least 20 transfers up to day t. Results on all accounts are also reported |
+| Scored population | Regular accounts: at least 20 transfers up to day t. Weekly scoring also reports all accounts; daily scoring does not yet |
 | Weekly scoring | Every 7 days; positive if the mule's onset falls in the last 7 days; earlier mules are left out |
-| Daily scoring (early detection) | Every day; positive while the mule is active (onset to completion); finished mules are left out; top K alerts per day |
+| Daily scoring (early detection) | Every day; positive while the mule is active (onset to completion); after completion a mule has no label but stays in the ranking; top K new alerts per day with a 30-day cooldown |
 | Uncertainty | 3 seeds; 95% intervals by resampling whole cases |
 
-**Difficulty so far** (LightGBM, test, mean of 3 seeds, `experiments/experiments.csv`):
+**Difficulty so far** (LightGBM, test, mean of 3 seeds, `experiments/experiments.csv`). Preliminary: early stopping can stop on the default log-loss instead of PR-AUC (weekly seed 1 stopped at round 3), so these runs will be repeated after the fix.
 - weekly: PR-AUC 0.75 (random ranking: 0.0001), Recall@100 0.96;
-- daily, 10 new accounts alerted per day with a 30-day cooldown (`docs/evaluation_protocol.md`): 76% of mules alerted before their first forwarding (of those that leave a day for it), 96% by their completion day, 65% strictly before it; 30% of alerts land on sources and exits of cases.
+- daily, 10 new accounts alerted per day with a 30-day cooldown (`docs/evaluation_protocol.md`): 76% of mules alerted before their first forwarding (of those that leave a day for it), 96% by their completion day, 65% strictly before it; 30% of alerts land on sources, exits and one-sided hubs of cases.
 
 Weekly scoring is close to its ceiling; daily scoring is where early-detection methods can still be compared.
 
-**Difficulty check** (`reports/difficulty_check.md`, weekly test, regular accounts): static input and activity level alone rank at random (PR-AUC 0.0006 and 0.0008, mule rate 0.0006); the best unlearned rule (new payees in 7 days) reaches 0.07; LightGBM 0.79. No label leakage was found.
+**Difficulty check** (`reports/difficulty_check.md`, weekly test, regular accounts): static input and activity level alone rank at random (PR-AUC 0.0006 and 0.0008, mule rate 0.0006); the best unlearned rule (distinct payees in the last 7 days) reaches 0.07; LightGBM 0.79. No label leakage was found.
 
 ## 8. Changes from the research plan
 
@@ -140,14 +140,15 @@ Weekly scoring is close to its ceiling; daily scoring is where early-detection m
 4. **Mule behaviour is clean.** Mules forward exactly 90% (2 of 621 forward less, because a normal transfer took most of their balance), and illicit amounts are smaller than normal ones (median 156 against 550).
 5. **Same-day activity.** 174 mules start and finish on one day; at day resolution they cannot be caught before completion.
 6. **One case per mule.** No account is reused across cases, so recruitment and repeated use over weeks are not represented.
-7. **Small test set.** About 220 mules in the test period; 95% intervals on PR-AUC are about ±0.06.
+7. **Small test set.** About 220 mules in the test period; 95% case-bootstrap intervals are about ±0.05 on weekly PR-AUC and ±0.07 on detection before forwarding.
 
-## 10. Open decisions
+## 10. Decisions
 
-1. **Sources and exits of cases**: negatives, as now, or left out of evaluation. They take about 30% of daily alerts, so the choice changes precision substantially.
-2. **Regular-population threshold**: currently at least 20 transfers up to the scoring day.
-3. **Cycle initiators** (40 accounts that send before they receive): kept as mules under the two-sided rule.
-4. **More realistic data** for later versions: noisy normal behaviour (occasional new counterparties), legitimate pass-through accounts, mules with variable forwarding and amounts, and mules reused across cases over several weeks.
+1. **Main early-detection target**: detection before the first illicit outflow, with detection before and by completion still reported. This changes the research plan's definition, so it was sent to the advisor for confirmation on 2026-11-09.
+2. **Sources, exits and one-sided hubs of cases**: negatives in the main results, because a bank does not know which accounts belong to a case. They take about 30% of daily alerts, so results without them are reported alongside.
+3. **Regular-population threshold**: at least 20 transfers up to the scoring day, because over all accounts activity alone separates mules (section 9, item 1). All-account results are reported alongside.
+4. **Cycle initiators** (40 accounts that send before they receive): kept as mules, because they receive and forward within the case as the agreed definition requires; reported separately, since they cannot be caught before forwarding.
+5. **More realistic data** is left for the evaluation phase: a harder version with noisy normal behaviour (occasional new counterparties), legitimate pass-through accounts, mules with variable forwarding and amounts, and mules reused across cases over several weeks.
 
 ## 11. Reproduce
 

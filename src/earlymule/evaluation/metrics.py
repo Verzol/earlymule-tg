@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import average_precision_score, roc_auc_score
+from sklearn.metrics import (average_precision_score, balanced_accuracy_score, f1_score, matthews_corrcoef,
+                             precision_score, recall_score, roc_auc_score)
 
 
 def rank_by_score(frame: pd.DataFrame) -> pd.DataFrame:
@@ -51,3 +52,18 @@ def evaluate(frame: pd.DataFrame, k: int) -> dict:
     out[f"recall_at_{k}_by_typology"] = {
         t: round(float(found.get(t, 0) / n), 4) for t, n in pos.typology.value_counts().items()}
     return out
+
+
+def threshold_classification(frame: pd.DataFrame, theta: float) -> dict:
+    """Secondary metrics of the research plan (23.2) for the rule score >= theta, over labelled rows.
+
+    Each labelled account-day is one prediction, so these describe daily classification, not detection timing.
+    """
+    lab = frame[frame.label.notna()]
+    y, pred = lab.label.astype(int), lab.score.ge(theta).astype(int)
+    return {"precision": round(float(precision_score(y, pred, zero_division=0)), 4),
+            "recall": round(float(recall_score(y, pred, zero_division=0)), 4),
+            "f1": round(float(f1_score(y, pred, zero_division=0)), 4),
+            "f1_macro": round(float(f1_score(y, pred, average="macro", zero_division=0)), 4),
+            "mcc": round(float(matthews_corrcoef(y, pred)), 4),
+            "balanced_accuracy": round(float(balanced_accuracy_score(y, pred)), 4)}

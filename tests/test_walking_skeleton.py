@@ -258,3 +258,21 @@ def test_summary_skips_dirty_runs_and_repeated_seeds():
                         "metrics": [m(0.1), m(0.2), m(0.4), m(0.9), m(0.6)]})
     table = summarize(log, "w")
     assert table.loc["test PR-AUC (all)", "mean"] == 0.5 and table.loc["test PR-AUC (all)", "seeds"] == 2
+
+
+def test_typology_table_and_threshold_classification():
+    """Per-typology timing (plan section 24) and the plan's secondary metrics at a threshold."""
+    from earlymule.evaluation.early_detection import early_detection
+    from earlymule.evaluation.metrics import threshold_classification
+    scores = pd.DataFrame({"acct_id": [1, 2, 3, 1, 2, 3], "snapshot": [5, 5, 5, 6, 6, 6],
+                           "score": [0.9, 0.1, 0.5, 0.2, 0.8, 0.1], "label": [1, 1, 0, 1, 1, 0]})
+    mules = pd.DataFrame({"acct_id": [1, 2], "onset_day": [5, 5], "completion_day": [6, 6],
+                          "first_illicit_outflow_day": [6, 6], "typology": ["a", "b"]})
+    r = early_detection(scores, mules, k=1)
+    # Mule 1 alerted on day 5 (TTD 0, lead 1), mule 2 on day 6 (TTD 1, lead 0); each typology gets one of 2 alerts
+    assert r["by_typology"]["a"] == {"mules": 1, "detected_before_forwarding": 1.0, "detected_by_completion": 1.0,
+                                     "median_ttd_days": 0.0, "median_lead_days": 1.0, "alert_hit_share": 0.5}
+    assert r["by_typology"]["b"]["median_ttd_days"] == 1.0 and r["by_typology"]["b"]["detected_before_forwarding"] == 0.0
+    c = threshold_classification(scores, 0.5)
+    # Predictions >= 0.5: rows 1, 3, 5 -> TP 2, FP 1, FN 2
+    assert (c["precision"], c["recall"]) == (0.6667, 0.5)

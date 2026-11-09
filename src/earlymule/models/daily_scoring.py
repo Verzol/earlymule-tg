@@ -19,7 +19,7 @@ import pandas as pd
 from earlymule.data.splits import active_labels, chronological_splits
 from earlymule.evaluation.early_detection import (detection_table, early_detection, threshold_alerts,
                                                   threshold_on_validation)
-from earlymule.evaluation.metrics import evaluate
+from earlymule.evaluation.metrics import evaluate, threshold_classification
 from earlymule.evaluation.uncertainty import bootstrap_detection, bootstrap_ranking
 from earlymule.experiment_log import log_run, run_dir, set_seed
 from earlymule.models.tabular import build_split, fit, config_from_cli, load_inputs, model_features
@@ -82,7 +82,8 @@ def main() -> None:
     # 4. Research plan's alert rule: one score threshold chosen on validation, no budget and no cooldown
     theta = threshold_on_validation(scored["val"])
     metrics["test"]["threshold"] = {"theta": round(theta, 4), **early_detection(
-        frame, table, None, 0, inputs["other_members"], threshold_alerts(frame, theta))}
+        frame, table, None, 0, inputs["other_members"], threshold_alerts(frame, theta)),
+        "classification": threshold_classification(frame, theta)}
 
     # 5. All accounts on test, reported next to the regular population; scored day by day to bound memory
     score_day = lambda f: f[["snapshot", "label", "typology"]].assign(  # noqa: E731

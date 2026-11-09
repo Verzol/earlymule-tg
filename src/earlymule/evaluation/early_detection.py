@@ -45,7 +45,11 @@ def daily_alerts(scores: pd.DataFrame, k: int, cooldown: int = 0) -> pd.DataFram
 
 
 def threshold_on_validation(scores: pd.DataFrame) -> float:
-    """Score threshold with the best F1 on labelled validation rows (the research plan's alert rule)."""
+    """Score threshold with the best F1 on labelled validation rows (the research plan's alert rule).
+
+    The plan only says the threshold is chosen on validation; F1 is used because it weighs missed mules
+    and false alerts equally without needing a cost ratio.
+    """
     rows = scores[scores.label.notna()]
     precision, recall, thresholds = precision_recall_curve(rows.label, rows.score)
     f1 = 2 * precision * recall / np.maximum(precision + recall, 1e-12)
@@ -139,7 +143,20 @@ def early_detection(scores: pd.DataFrame, mules: pd.DataFrame, k: int | None, co
         "detected_before_forwarding_by_typology": elig.groupby("typology").before_forwarding.mean().round(4).to_dict(),
         "detected_by_completion_by_typology": t.groupby("typology").by_completion.mean().round(4).to_dict(),
     }
-    # 3. Share of alerts spent on hard negatives
+    # 3. Research plan table (section 24) per typology. Precision has no per-typology form (negatives have
+    #    no typology), so each typology gets its share of all alerts that hit one of its active mules
+    hits = active[active.snapshot.between(active.onset_day, active.completion_day)]
+    hit_typ = hits.acct_id.map(mules.set_index("acct_id").typology).value_counts()
+    out["by_typology"] = {
+        typ: {"mules": len(g), "detected_before_forwarding": share(g.before_forwarding[g.can_precede_forwarding]),
+              "detected_by_completion": share(g.by_completion),
+              "median_ttd_days": float((g.detect_day - g.onset_day)[g.by_completion].median())
+              if g.by_completion.any() else np.nan,
+              "median_lead_days": float((g.completion_day - g.detect_day)[g.by_completion].median())
+              if g.by_completion.any() else np.nan,
+              "alert_hit_share": round(float(hit_typ.get(typ, 0) / len(alerts)), 4) if len(alerts) else np.nan}
+        for typ, g in t.groupby("typology")}
+    # 4. Share of alerts spent on hard negatives
     if other_members is not None:
         out["alert_share_other_alert_members"] = round(float(alerts.acct_id.isin(other_members).mean()), 4)
     return out

@@ -34,6 +34,9 @@ def daily_rows(metrics: dict) -> dict:
                 "alert_precision_active_mule"]:
         if key in th:
             out[f"threshold {key}"] = th[key]
+    for key in ["f1", "mcc", "balanced_accuracy"]:
+        if key in th.get("classification", {}):
+            out[f"threshold {key}"] = th["classification"][key]
     out["all accounts PR-AUC"] = _get(metrics, ("test_all_accounts", "ranking", "pr_auc"))
     for e in _get(metrics, ("test_all_accounts", "early_detection")) or []:
         out[f"all accounts K={e['k_per_day']} before forwarding"] = e["detected_before_forwarding"]

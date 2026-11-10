@@ -1,0 +1,4 @@
+# Kaggle Dataset settings for the exported event stream. Run: python -m earlymule.data.export_events
+owner: verzol                  # Kaggle username; the token itself lives in ~/.kaggle (docs/setup.md section 4.1)
+slug_prefix: earlymule-        # dataset id: <owner>/<slug_prefix><dataset name, lower case>
+scoring_config: daily.yaml     # split days, regular population and labels follow the daily scoring run

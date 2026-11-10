@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 import yaml
 
-from earlymule.config import load_paths, repo_root
+from earlymule.config import Paths, load_paths, repo_root
 from earlymule.data import amlsim
 from earlymule.data.ground_truth import build_ground_truth
 from earlymule.data.leakage import input_columns
@@ -37,9 +37,9 @@ def load_config(name: str) -> dict:
     return {**load_config(base), **cfg} if base else cfg
 
 
-def load_inputs() -> dict:
-    """Transfers, static attributes and mule ground truth of the configured dataset."""
-    paths = load_paths()
+def load_inputs(paths: Paths | None = None) -> dict:
+    """Transfers, static attributes and mule ground truth of the configured dataset (or of `paths`)."""
+    paths = paths or load_paths()
     base = amlsim.read_base_date(paths.amlsim_conf)
     tx = load_transactions(paths.dataset_dir, base)
     accounts = pd.read_csv(paths.dataset_dir / "accounts.csv",

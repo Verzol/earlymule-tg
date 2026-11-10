@@ -22,9 +22,11 @@ lightgbm:
   deterministic: true
   force_row_wise: true
   verbose: -1
-early_stopping_rounds: 300  # at learning rate 0.05 validation PR-AUC dipped for ~400 rounds before recovering; 0.01 rises steadily
-# Cumulative counts grow with the calendar, so test values sit outside the train range; kept only for
-# choosing the regular population (n_tx_hist). On 2026-11-04 window features alone gave test PR-AUC
-# 0.61 against 0.51 with these included.
+# Weekly seed 1 validation PR-AUC: 0.742 at round 3, 0.53 at 50, 0.63 at 300, then 0.797 at 1416;
+# with patience 300 it stopped at round 3 (2026-11-10)
+early_stopping_rounds: 1000
+# Cumulative counts grow with the calendar, so later values sit outside the train range; n_tx_hist only
+# chooses the regular population. Validation, daily seed 0 (2026-11-10): adding both moved PR-AUC
+# 0.548 -> 0.552, within the seed-to-seed sd of 0.004, so they stay out.
 exclude_features: [n_tx_hist, days_since_first_tx]
 bootstrap_samples: 1000   # case-bootstrap resamples for 95% intervals on test

@@ -6,9 +6,9 @@ This document records how the EarlyMule-TG environments were built, with exact v
 |---|---|---|---|
 | AMLSim | WSL2 (Ubuntu) on the laptop | Generating the synthetic dataset D1 | Ready (2026-10-19) |
 | Main Python | WSL2 on the laptop, CPU only | Data processing, features, tabular baselines, tests | Ready (2026-10-31) |
-| GPU | Kaggle notebook | Temporal GNN training | Planned |
+| GPU | Kaggle notebook | Temporal GNN training | Account and CLI ready (2026-11-10) |
 
-The laptop GPU is AMD (no CUDA), so GPU work runs on Kaggle.
+The current laptop has an NVIDIA RTX 4050 Laptop GPU (6 GB), usable for small debug runs; full GPU runs are on Kaggle.
 
 ---
 
@@ -167,6 +167,26 @@ processed: /kaggle/working/processed
 ```
 The repository root is taken from the package location; set `EARLYMULE_ROOT` to override it.
 
-## 4. Kaggle GPU environment (planned)
+## 4. Kaggle GPU environment
 
-To be filled in once set up: notebook link, GPU type, CUDA, PyTorch and PyG versions.
+The account is `verzol` (phone verified, so notebooks can use Internet and GPU; 30 GPU hours per week). The repository is public, so a notebook clones it without a GitHub token.
+
+### 4.1. API token (once per machine)
+
+The Kaggle CLI needs an API token on each machine that uploads datasets or downloads outputs. The token is personal and is never stored in the repository; `.gitignore` also blocks `access_token` and `kaggle.json` in case one is copied in by mistake.
+
+1. Kaggle, Settings, API Tokens, **Generate New Token**. Kaggle allows several tokens, so each machine can have its own and an old one can be expired alone.
+2. Save it in the user's home folder, outside the repository:
+   ```bash
+   mkdir -p ~/.kaggle
+   printf '%s' '<token>' > ~/.kaggle/access_token   # Windows: C:\Users\<user>\.kaggle\access_token
+   chmod 600 ~/.kaggle/access_token                  # Linux and WSL
+   ```
+   On a shared or CI machine use the environment variable `KAGGLE_API_TOKEN` instead of the file.
+3. Check: `kaggle config view` shows the username `verzol`, and `kaggle datasets list --mine` runs without an authentication error.
+
+Needs Kaggle CLI 1.8 or later (tokens of the new kind); the laptop has 2.1.2 on Windows (`pip install kaggle`).
+
+### 4.2. Notebook environment
+
+To be filled in after the first run: notebook link, GPU type, CUDA, PyTorch and PyG versions.

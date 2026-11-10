@@ -33,6 +33,9 @@ venv/
 .env
 *.secret
 configs/local*.yaml
+# Kaggle API credentials belong in ~/.kaggle, never in the repository
+access_token
+kaggle.json
 
 # Local working files; never commit
 /.local/

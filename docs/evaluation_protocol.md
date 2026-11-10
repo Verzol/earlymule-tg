@@ -94,7 +94,7 @@ Day resolution throughout: an alert on day d uses transfers up to the end of day
 
 **Current reference (LightGBM, daily, test, 3 seeds, K = 10, 30-day cooldown, commit `c62fa61`):** detected before forwarding 0.761 ± 0.003 (seed 0: 0.763, interval [0.697, 0.831]); before completion 0.651 (multi-day mules 0.797); by completion 0.959; PR-AUC 0.650 ± 0.004; alert precision 0.118 (ceiling about 0.12); 30% of alerts on hard negatives; about 1,660 distinct accounts among 1,800 alerts; median TTD 0 days, lead time 2 days; 1 mule alerted in the 7 days before its onset. Before forwarding by typology (seed 0): M3 and M4 0.86, M1 0.78, M2 0.76, cycle 0.42; median lead time M1 and M3 4 days, M4 2, M2 and cycle 0.
 
-Alongside: K = 5, 20 and 50 catch 0.678, 0.821 and 0.842 before forwarding. Over all accounts, K = 10 catches 0.631 ± 0.062 (PR-AUC 0.570). The threshold rule catches 0.497 ± 0.045 with 7.2 alerts per day and alert precision 0.348; at θ, F1 0.626, MCC 0.639, balanced accuracy 0.761. Weekly sanity check: PR-AUC 0.780 ± 0.024 on regular accounts, Recall@100 0.968.
+Alongside: K = 5, 20 and 50 catch 0.678, 0.821 and 0.842 before forwarding. Over all accounts, K = 10 catches 0.631 ± 0.062 (PR-AUC 0.570); without hard negatives it catches 0.802 ± 0.019 (PR-AUC 0.741). The threshold rule catches 0.497 ± 0.045 with 7.2 alerts per day and alert precision 0.348; at θ, F1 0.626, MCC 0.639, balanced accuracy 0.761. Weekly sanity check: PR-AUC 0.780 ± 0.024 on regular accounts, Recall@100 0.968.
 
 **Effect of the v0.2 rules** (seed 1, K = 10, detected before forwarding / alert precision): v0.1 rules 0.67 / 0.33; finished mules kept in the ranking, no cooldown 0.55 / 0.28; finished mules removed, 30-day cooldown 0.77 / 0.12; v0.2 (both) 0.76 / 0.12. Removing finished mules from the ranking inflated the v0.1 numbers; the cooldown removes repeated alerts, which also keeps finished mules out of the top K, since they were usually alerted during their case.
 
@@ -103,12 +103,14 @@ Alongside: K = 5, 20 and 50 catch 0.678, 0.821 and 0.842 before forwarding. Over
 | # | Decision | Reason | Status |
 |---|---|---|---|
 | 1 | Main task: daily early detection; primary metric: share of mules alerted before their first forwarding at K = 10. Detection before and by completion (the plan's definition) and the weekly ranking are still reported | Before its first outflow the money is still in the account and can be held | Changes the plan's definition; sent to the advisor 2026-11-09 |
-| 2 | Hard negatives (sources, exits, one-sided hubs) stay negatives | A bank does not know which accounts belong to a case | Applied; results without them still to be added (section 9) |
+| 2 | Hard negatives (sources, exits, one-sided hubs) stay negatives | A bank does not know which accounts belong to a case | Applied; results without them reported alongside |
 | 3 | Scored population: regular accounts, at least 20 transfers up to day t; all accounts reported alongside | Over all accounts activity alone separates mules (section 4) | Applied |
 | 4 | Alert budget: K = 10 new accounts per day with a 30-day cooldown; 5, 20, 50 and the plan's threshold rule also reported | A bank reviews a fixed number of cases per day; 30 days is the longest feature window | Applied |
 | 5 | Folds: one fixed time split with three seeds | Allowed by the plan (section 21.4); keeps the full test period | Applied |
 
-## 9. Not yet implemented
+## 9. Commands on saved run outputs
 
-- The daily view without hard negatives. It can be computed from the saved test scores of each run (`experiments/runs/<run>/<commit>/seed<N>/scores_test.parquet`) without retraining.
-- A command that runs the paired comparison over the saved per-mule tables of two models (`detection_test.parquet` in the same folders); the function exists and is tested.
+Each daily run saves its test scores and per-mule table under `experiments/runs/<run>/<commit>/seed<N>/`, so these views need no retraining:
+
+- `python -m earlymule.evaluation.views [--run lightgbm_daily]`: the daily results without hard negatives, logged as `<run>_no_hard_negatives`.
+- `python -m earlymule.evaluation.compare A B [--k 10]`: the paired comparison of section 6 for every seed both runs have; writes `experiments/runs/comparisons/<A>_vs_<B>.csv` and prints whether A is better than B.

@@ -187,6 +187,19 @@ The Kaggle CLI needs an API token on each machine that uploads datasets or downl
 
 Needs Kaggle CLI 1.8 or later (tokens of the new kind); the laptop has 2.1.2 on Windows (`pip install kaggle`).
 
-### 4.2. Notebook environment
+### 4.2. Datasets
+
+`python -m earlymule.data.export_events [--dataset <name>]` (in WSL) writes `data/processed/kaggle/<dataset>/`: the transfers as events, the accounts as nodes, the rows to score per split and a manifest with the commit. Test rows carry no labels; evaluation stays local. Upload from Windows, where the CLI is installed:
+```bash
+kaggle datasets create -p data/processed/kaggle/80K-earlymule-mule -r skip                     # first time, private
+kaggle datasets version -p data/processed/kaggle/80K-earlymule-mule -r skip -m "<what changed>"  # after a new export
+```
+
+| Dataset | Kaggle id | Size | Exported at |
+|---|---|---|---|
+| `80K-earlymule-mule` (main) | `verzol/earlymule-80k-earlymule-mule` | 37 MB | `aca8f36`, 2026-11-10 |
+| `10K-earlymule-mule` (debugging) | `verzol/earlymule-10k-earlymule-mule` | 2 MB | `aca8f36`, 2026-11-10 |
+
+### 4.3. Notebook environment
 
 To be filled in after the first run: notebook link, GPU type, CUDA, PyTorch and PyG versions.

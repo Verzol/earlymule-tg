@@ -9,7 +9,7 @@ import sys
 
 import pandas as pd
 
-from earlymule.experiment_log import read_log
+from earlymule.experiment_log import read_log, select_runs
 
 # (label, path into the metrics JSON); a missing path is skipped
 WEEKLY = [("test PR-AUC (all)", ("test", "all", "pr_auc")), ("test Recall@100 (all)", ("test", "all", "recall_at_100")),
@@ -58,10 +58,10 @@ def summarize(log: pd.DataFrame, run_name: str) -> pd.DataFrame:
     Runs from uncommitted code are left out (protocol rule); a seed rerun on the same commit counts once,
     with its latest row.
     """
-    runs = log[log.run_name.eq(run_name) & ~log.dirty.astype(str).str.lower().eq("true")]
-    if runs.empty:
+    try:
+        runs = select_runs(log, run_name)
+    except ValueError:
         return pd.DataFrame()
-    runs = runs[runs.commit.eq(runs.commit.iloc[-1])].drop_duplicates("seed", keep="last")
     flat = [daily_rows(m) if "ranking" in m.get("test", {}) else {lab: _get(m, p) for lab, p in WEEKLY}
             for m in runs.metrics]
     table = pd.DataFrame(flat, index=runs.seed.to_numpy()).dropna(axis=1, how="all")

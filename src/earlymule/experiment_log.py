@@ -125,3 +125,29 @@ def read_log(log_file: str | Path | None = None):
     df["config"] = df["config"].map(json.loads)
     df["metrics"] = df["metrics"].map(json.loads)
     return df
+
+
+def select_runs(log, run_name: str, commit: str | None = None):
+    """Clean logged rows of run_name at `commit` (default: the latest clean commit), one per seed (latest row).
+
+    Args:
+        log: read_log output.
+    Returns:
+        DataFrame of the selected rows; ValueError if there is none.
+    """
+    runs = log[log.run_name.eq(run_name) & ~log.dirty.astype(str).str.lower().eq("true")]
+    if runs.empty:
+        raise ValueError(f"no clean run of {run_name} in the log")
+    commit = commit or runs.commit.iloc[-1]
+    runs = runs[runs.commit.eq(commit)].drop_duplicates("seed", keep="last")
+    if runs.empty:
+        raise ValueError(f"no clean run of {run_name} at commit {commit}")
+    return runs
+
+
+def run_folder(run_name: str, commit: str, seed: int) -> Path:
+    """Existing output folder of a logged run (see run_dir)."""
+    d = load_paths().experiments / "runs" / run_name / commit / f"seed{seed}"
+    if not d.is_dir():
+        raise FileNotFoundError(f"no saved outputs for {run_name} {commit} seed {seed}: {d}")
+    return d

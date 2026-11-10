@@ -276,3 +276,32 @@ def test_typology_table_and_threshold_classification():
     c = threshold_classification(scores, 0.5)
     # Predictions >= 0.5: rows 1, 3, 5 -> TP 2, FP 1, FN 2
     assert (c["precision"], c["recall"]) == (0.6667, 0.5)
+
+
+def test_select_runs_takes_latest_clean_commit():
+    """Run selection skips dirty rows, takes the latest clean commit and one row per seed."""
+    from earlymule.experiment_log import select_runs
+    log = pd.DataFrame({"run_name": ["d"] * 4 + ["x"], "commit": ["a", "b", "b", "c", "c"],
+                        "dirty": [False, False, False, True, False], "seed": [0, 0, 0, 1, 0], "metrics": [1, 2, 3, 4, 5]})
+    runs = select_runs(log, "d")
+    assert runs.commit.tolist() == ["b"] and runs.metrics.tolist() == [3]
+    assert select_runs(log, "d", "a").metrics.tolist() == [1]
+    with pytest.raises(ValueError):
+        select_runs(log, "d", "c")
+
+
+def test_compare_tables_needs_every_seed_above_zero():
+    """A is better only when the paired interval is above 0 for each shared seed."""
+    from earlymule.evaluation.compare import compare_tables
+    base = pd.DataFrame({"acct_id": range(6), "alert_id": range(6), "can_precede_forwarding": True, "k": 10})
+    good, bad = base.assign(before_forwarding=True), base.assign(before_forwarding=False)
+    r = compare_tables({0: good, 1: good}, {0: bad, 1: bad, 2: bad}, k=10, n=200)
+    assert r.seed.tolist() == [0, 1] and r.a_better.all() and r.difference.tolist() == [1.0, 1.0]
+    assert not compare_tables({0: bad}, {0: bad}, k=10, n=200).a_better.any()
+
+
+def test_view_without_hard_negatives():
+    """The comparison view drops the non-mule alert members and keeps every other row."""
+    from earlymule.evaluation.views import without_hard_negatives
+    scores = pd.DataFrame({"acct_id": [1, 2, 3, 2], "snapshot": [5, 5, 5, 6], "score": [0.1, 0.9, 0.5, 0.8]})
+    assert without_hard_negatives(scores, pd.Index([2])).acct_id.tolist() == [1, 3]

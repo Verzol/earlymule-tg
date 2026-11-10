@@ -1,6 +1,6 @@
-# Data Spec v0.2: AMLSim-Mule dataset `80K-earlymule-mule`
+# Data Spec v0.3: AMLSim-Mule dataset `80K-earlymule-mule`
 
-Version 0.2, 2026-11-09 (v0.1: 2026-11-04). Describes the dataset used for every experiment from 2026-11-03 on, how mule labels are derived, which columns a model may use, and the known limitations. It is the reference for the weekly reports. Every number can be reproduced with the commands in section 11.
+Version 0.3, 2026-11-10 (v0.2: 2026-11-09, v0.1: 2026-11-04). Describes the dataset used for every experiment from 2026-11-03 on, how mule labels are derived, which columns a model may use, and the known limitations. It is the reference for the weekly reports. Every number can be reproduced with the commands in section 11.
 
 ## 1. Summary
 
@@ -110,18 +110,18 @@ Features at day t use only transfers dated on or before t. Illicit transfers are
 |---|---|
 | Split | By day: train 0–431, validation 432–539, test 540–719 (60/15/25%) |
 | Feature windows | 1, 7 and 30 days, end of day t (advisor, 2026-11-02) |
-| Scored population | Regular accounts: at least 20 transfers up to day t. Weekly scoring also reports all accounts; daily scoring does not yet |
+| Scored population | Regular accounts: at least 20 transfers up to day t. Results on all accounts are reported alongside |
 | Weekly scoring | Every 7 days; positive if the mule's onset falls in the last 7 days; earlier mules are left out |
 | Daily scoring (early detection) | Every day; positive while the mule is active (onset to completion); after completion a mule has no label but stays in the ranking; top K new alerts per day with a 30-day cooldown |
 | Uncertainty | 3 seeds; 95% intervals by resampling whole cases |
 
-**Difficulty so far** (LightGBM, test, mean of 3 seeds, `experiments/experiments.csv`). Preliminary: early stopping can stop on the default log-loss instead of PR-AUC (weekly seed 1 stopped at round 3), so these runs will be repeated after the fix.
-- weekly: PR-AUC 0.75 (random ranking: 0.0001), Recall@100 0.96;
-- daily, 10 new accounts alerted per day with a 30-day cooldown (`docs/evaluation_protocol.md`): 76% of mules alerted before their first forwarding (of those that leave a day for it), 96% by their completion day, 65% strictly before it; 30% of alerts land on sources, exits and one-sided hubs of cases.
+**Difficulty so far** (LightGBM, test, mean of 3 seeds, `experiments/experiments.csv`, commit `c62fa61`; early stopping on validation PR-AUC only, patience 1,000 rounds):
+- weekly, regular accounts: PR-AUC 0.78 ± 0.02 (random ranking: 0.0006), Recall@100 0.97;
+- daily, 10 new accounts alerted per day with a 30-day cooldown (`docs/evaluation_protocol.md`): 76% of mules alerted before their first forwarding (of those that leave a day for it), 96% by their completion day, 65% strictly before it; 30% of alerts land on sources, exits and one-sided hubs of cases. Over all accounts the same budget catches 63% before forwarding.
 
 Weekly scoring is close to its ceiling; daily scoring is where early-detection methods can still be compared.
 
-**Difficulty check** (`reports/difficulty_check.md`, weekly test, regular accounts): static input and activity level alone rank at random (PR-AUC 0.0006 and 0.0008, mule rate 0.0006); the best unlearned rule (distinct payees in the last 7 days) reaches 0.07; LightGBM 0.79. No label leakage was found.
+**Difficulty check** (`reports/difficulty_check.md`, weekly test, regular accounts): static input and activity level alone rank at random (PR-AUC 0.0006 and 0.0008, mule rate 0.0006); the best unlearned rule (distinct payees in the last 7 days) reaches 0.07; LightGBM 0.80. No label leakage was found.
 
 ## 8. Changes from the research plan
 
@@ -134,7 +134,7 @@ Weekly scoring is close to its ceiling; daily scoring is where early-detection m
 
 ## 9. Known limitations
 
-1. **Activity shortcut.** Case members are drawn from accounts with regular activity, while most accounts barely transact. Counting normal transfers alone separates mules with ROC-AUC 0.92 over all accounts, but only 0.51 over regular accounts; this is why the regular population is the main one. The cause is member selection, not hubs: inside the regular population mules have the same median activity as other accounts (111–114 against 110 normal transfers).
+1. **Activity shortcut.** Case members are drawn from accounts with regular activity, while most accounts barely transact. Counting normal transfers alone separates mules with ROC-AUC 0.92 over all accounts, but only 0.51 over regular accounts (single-column screening, `reports/difficulty_check.md`); this is why the regular population is the main one. The cause is member selection, not hubs: inside the regular population mules have the same median activity as other accounts (111–114 against 110 normal transfers).
 2. **Initial balance follows activity** because of change 5 (ROC-AUC 0.64 over all accounts, 0.50 over regular accounts).
 3. **Normal behaviour is very regular.** Normal models pay fixed counterparties on fixed schedules, so "new counterparty" features are strong: 99% of mules meet a new counterparty in the week they start, against 10% of regular accounts. Real customers pay new people more often, so the task is likely easier than in practice.
 4. **Mule behaviour is clean.** Mules forward exactly 90% (2 of 621 forward less, because a normal transfer took most of their balance), and illicit amounts are smaller than normal ones (median 156 against 550).

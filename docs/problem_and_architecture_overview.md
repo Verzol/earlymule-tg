@@ -1,6 +1,6 @@
 # EarlyMule-TG: problem, practical objective and proposed architecture
 
-Updated 9 November 2026. This overview follows the advisor's research plan, the implemented evaluation protocol and the code at `a7ff3a0`.
+Updated 10 November 2026. This overview follows the advisor's research plan, the implemented evaluation protocol and the code at `c62fa61`.
 
 The diagrams distinguish implemented components from proposed research components. The money-flow example is illustrative, not a reconstruction of a real incident.
 
@@ -48,7 +48,7 @@ Consider this hypothetical account timeline:
 
 The original research plan defines early detection relative to completion. The implemented protocol proposes detection before the first illicit outflow as the headline result, while retaining detection before completion and by completion. This is the only evaluation choice that departs from the plan's definition, so it was sent to the advisor for confirmation on 9 November.
 
-**Day-resolution limit.** When receipt and forwarding happen on the same day, end-of-day scoring has no observation point between them. Such accounts are excluded from the denominator of the before-first-forwarding metric, but remain in the other applicable metrics. The current mean result of about 76.1% is conditional on 173 test mules with a suitable day gap; it is not 76.1% of all mules or all real-world cases. The figure is preliminary: LightGBM early stopping can currently stop on the default log-loss instead of PR-AUC, and the runs will be repeated after the fix.
+**Day-resolution limit.** When receipt and forwarding happen on the same day, end-of-day scoring has no observation point between them. Such accounts are excluded from the denominator of the before-first-forwarding metric, but remain in the other applicable metrics. The current mean result of about 76.1% is conditional on 173 test mules with a suitable day gap; it is not 76.1% of all mules or all real-world cases. It was unchanged when the runs were repeated after early stopping was restricted to validation PR-AUC.
 
 Under the current protocol, a credited detection must be on or after the account's illicit onset. Alerts before onset are tracked separately, not counted as successes in the headline detection metric.
 
@@ -86,7 +86,7 @@ Evaluating primarily among accounts with at least twenty transfers reduces this 
 
 The count includes incoming and outgoing transfers of any observed kind. A bank does not have illicit labels available to count only legitimate transfers. It is a cumulative count up to the scoring day, not a count restricted to the last thirty days.
 
-**Tradeoff.** New or low-history accounts that are genuinely used as mules may be outside the main population. Population coverage and all-account results must therefore accompany the main view. The daily pipeline does not yet report the complete all-account comparison; this is remaining work, not an implemented result.
+**Tradeoff.** New or low-history accounts that are genuinely used as mules may be outside the main population. Population coverage and all-account results must therefore accompany the main view. With the same budget of ten alerts per day, LightGBM catches about 63% of mules before forwarding over all accounts, against 76% among regular accounts: low-history accounts take alert slots.
 
 Twenty is not a validated banking standard. Other thresholds can be studied through a suitable validation/sensitivity procedure, without choosing a threshold to improve the already observed final-test score.
 

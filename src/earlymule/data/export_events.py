@@ -74,7 +74,7 @@ def build_export(inputs: dict, base_date: pd.Timestamp, cfg: dict) -> dict[str, 
                            "dst": node_of.reindex(tx.bene_acct).to_numpy(),
                            "day": tx.day.astype("int16").to_numpy(),
                            "log_amount": np.log1p(tx.base_amt.to_numpy()).astype("float32"),
-                           "dow": ((base_date.dayofweek + tx.day) % 7).astype("int8").to_numpy()})
+                           "dow": ((base_date.day_of_week + tx.day) % 7).astype("int8").to_numpy()})
     if events[["src", "dst"]].isna().any().any():
         raise ValueError("a transfer names an account missing from accounts.csv")
     events = events.astype({"src": "int32", "dst": "int32"})

@@ -123,7 +123,7 @@ class TGN:
                 loss.backward()
                 self.optimizer.step()
                 self.memory.detach()
-                total += float(loss) * batch.num_events
+                total += loss.item() * batch.num_events
                 seen += batch.num_events
             else:
                 scores.append(torch.cat([pos, neg]).sigmoid().cpu())

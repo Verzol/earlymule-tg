@@ -6,7 +6,7 @@ This document records how the EarlyMule-TG environments were built, with exact v
 |---|---|---|---|
 | AMLSim | WSL2 (Ubuntu) on the laptop | Generating the synthetic dataset D1 | Ready (2026-10-19) |
 | Main Python | WSL2 on the laptop, CPU only | Data processing, features, tabular baselines, tests | Ready (2026-10-31) |
-| GPU | Kaggle notebook | Temporal GNN training | Account and CLI ready (2026-11-10) |
+| GPU | Kaggle notebook | Temporal GNN training | Ready (2026-11-10) |
 
 The current laptop has an NVIDIA RTX 4050 Laptop GPU (6 GB), usable for small debug runs; full GPU runs are on Kaggle.
 
@@ -202,4 +202,23 @@ kaggle datasets version -p data/processed/kaggle/80K-earlymule-mule -r skip -m "
 
 ### 4.3. Notebook environment
 
-To be filled in after the first run: notebook link, GPU type, CUDA, PyTorch and PyG versions.
+Notebook `verzol/earlymule-tgn-spike` (private), pushed with `kaggle kernels push -p notebooks/kaggle/tgn_spike`; outputs with `kaggle kernels output verzol/earlymule-tgn-spike -p <folder>`. It clones the repository, installs it with `pip install -e . --no-deps` and `pip install torch_geometric`, then runs `python -m earlymule.models.tgn_smoke`.
+
+| Component | Version (run of 2026-11-10, code `2b48ca6`) |
+|---|---|
+| GPU | 2 × Tesla T4, 15 GB each (`machine_shape: NvidiaTeslaT4`) |
+| Python | 3.13.16 |
+| PyTorch | 2.11.0+cu130 (preinstalled) |
+| CUDA | 13.0 |
+| PyG | 2.8.1 (pip, no compiled extensions needed for TGN) |
+
+Smoke test results:
+
+| Check | Result |
+|---|---|
+| PyG's TGN example, JODIE Wikipedia (157,474 events) | validation AP 0.872, 0.936, 0.947 after epochs 1 to 3; 14 s per epoch; peak 246 MiB |
+| One TGN epoch on our train-period transfers (1,075,151 events, 96,344 accounts, batches of 200) | 292 s, 3,683 events per second, peak 218 MiB |
+| Export check | data exported at `aca8f36`; export code unchanged at `2b48ca6` |
+| Whole notebook | about 8.5 minutes, after about 90 minutes in the queue for a T4 |
+
+The queue, not the run, is the slow part; debugging on the laptop GPU avoids it.

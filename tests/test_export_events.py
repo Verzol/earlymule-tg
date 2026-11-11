@@ -30,7 +30,8 @@ def test_export_tables():
     accounts = pd.DataFrame({"initial_deposit": np.arange(6.0)}, index=pd.Index(range(1, 7), name="acct_id"))
     # Mule 1 is active on days 3-5 (train), mule 2 on days 12-14 (val) and finished from day 15
     mules = pd.DataFrame({"onset_day": [3, 12], "completion_day": [5, 14]}, index=pd.Index([1, 2], name="acct_id"))
-    cfg = {"total_days": 20, "split_fractions": [0.6, 0.2, 0.2], "regular_min_tx": 2, "min_history_days": 1}
+    cfg = {"total_days": 20, "split_fractions": [0.6, 0.2, 0.2], "regular_min_tx": 2, "min_history_days": 1,
+           "windows": [1, 7], "exclude_features": ["n_tx_hist"]}
     out = build_export({"tx": tx, "accounts": accounts, "mules": mules}, pd.Timestamp("2017-01-01", tz="UTC"), cfg)
 
     assert len(out["events"]) == len(tx) and out["nodes"].node.tolist() == list(range(6))
@@ -41,3 +42,23 @@ def test_export_tables():
     assert val[val.acct_id.eq(2) & val.snapshot.eq(15)].label.isna().all()
     assert "label" not in test.columns and test.snapshot.between(16, 19).all()
     assert (out["nodes"].set_index("acct_id").node.reindex(test.acct_id).to_numpy() == test.node.to_numpy()).all()
+
+
+def test_row_features_match_snapshot_features():
+    """Each split's features are the point-in-time features of its rows, in row order, minus excluded columns."""
+    tx = random_tx(accounts=6, days=20)
+    accounts = pd.DataFrame({"initial_deposit": np.arange(6.0)}, index=pd.Index(range(1, 7), name="acct_id"))
+    mules = pd.DataFrame({"onset_day": [3], "completion_day": [5]}, index=pd.Index([1], name="acct_id"))
+    cfg = {"total_days": 20, "split_fractions": [0.6, 0.2, 0.2], "regular_min_tx": 2, "min_history_days": 1,
+           "windows": [1, 7], "exclude_features": ["n_tx_hist"]}
+    out = build_export({"tx": tx, "accounts": accounts, "mules": mules}, pd.Timestamp("2017-01-01", tz="UTC"), cfg)
+    for split in ["train", "val", "test"]:
+        rows, feats = out[f"rows_{split}"], out[f"features_{split}"]
+        assert (feats[["acct_id", "snapshot"]].to_numpy() == rows[["acct_id", "snapshot"]].to_numpy()).all()
+        assert "n_tx_hist" not in feats and "initial_deposit" not in feats and "label" not in feats
+        # Spot-check one day against a direct snapshot
+        t = int(rows.snapshot.iloc[-1])
+        ids = pd.Index(rows.acct_id[rows.snapshot.eq(t)])
+        direct = snapshot_features(tx, ids, t, (1, 7)).drop(columns="n_tx_hist")
+        got = feats[feats.snapshot.eq(t)].set_index("acct_id")[direct.columns]
+        pd.testing.assert_frame_equal(got, direct, check_names=False)

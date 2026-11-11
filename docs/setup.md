@@ -190,7 +190,7 @@ Needs Kaggle CLI 1.8 or later (tokens of the new kind); the laptop has 2.1.2 on 
 
 ### 4.2. Datasets
 
-`python -m earlymule.data.export_events [--dataset <name>]` (in WSL) writes `data/processed/kaggle/<dataset>/`: the transfers as events, the accounts as nodes, the rows to score per split and a manifest with the commit. Test rows carry no labels; evaluation stays local. Upload from Windows, where the CLI is installed:
+`python -m earlymule.data.export_events [--dataset <name>]` (in WSL) writes `data/processed/kaggle/<dataset>/`: the transfers as events, the accounts as nodes, the rows to score per split, the daily LightGBM features of those rows (`features_<split>.parquet`, same row order, read by `configs/tgn_features.yaml`) and a manifest with the commit. Test rows carry no labels; evaluation stays local. Upload from Windows, where the CLI is installed:
 ```bash
 kaggle datasets create -p data/processed/kaggle/80K-earlymule-mule -r skip                     # first time, private
 kaggle datasets version -p data/processed/kaggle/80K-earlymule-mule -r skip -m "<what changed>"  # after a new export

@@ -2,10 +2,11 @@
 
 Kaggle only trains and scores; evaluation runs locally on the returned scores, so test labels are not exported.
 Rows follow the daily scoring run (configs/daily.yaml): regular accounts, train from day min_history_days,
-validation and test every day with finished mules kept unlabelled.
+validation and test every day with finished mules kept unlabelled. features_<split> holds the LightGBM
+point-in-time features of each row, in the same row order.
 Run: python -m earlymule.data.export_events [--dataset 80K-earlymule-mule]
-Writes data/processed/kaggle/<dataset>/: events, nodes, rows_{train,val,test}.parquet, manifest.json,
-dataset-metadata.json. Upload: kaggle datasets create -p <folder>; later: kaggle datasets version -p <folder> -m "..."
+Writes data/processed/kaggle/<dataset>/: events, nodes, rows_{train,val,test}.parquet,
+features_{train,val,test}.parquet, manifest.json, dataset-metadata.json. Upload: kaggle datasets create -p <folder>; later: kaggle datasets version -p <folder> -m "..."
 """
 
 from __future__ import annotations
@@ -23,6 +24,7 @@ from earlymule.data import amlsim
 from earlymule.data.leakage import check_feature_columns
 from earlymule.data.splits import active_labels, chronological_splits
 from earlymule.experiment_log import git_state
+from earlymule.features.point_in_time import snapshot_features
 from earlymule.models.tabular import load_config, load_inputs
 
 
@@ -53,13 +55,32 @@ def split_rows(label_fn, regular_from: pd.Series, days, keep_unlabeled: bool) ->
     return pd.concat(frames, ignore_index=True).astype({"acct_id": "int64", "snapshot": "int16", "label": "float32"})
 
 
+def row_features(inputs: dict, rows: pd.DataFrame, cfg: dict) -> pd.DataFrame:
+    """LightGBM features of each (acct_id, snapshot) row at the end of its day, in the order of rows.
+
+    Same columns as the daily LightGBM run minus initial_deposit, which the graph models read from nodes.
+    """
+    # 1. One snapshot per day, on that day's accounts only
+    frames = []
+    for t, ids in rows.groupby("snapshot", sort=False).acct_id:
+        f = snapshot_features(inputs["tx"], pd.Index(ids), int(t), tuple(cfg["windows"]), inputs.get("first_day"))
+        frames.append(f.drop(columns=cfg.get("exclude_features", [])).rename_axis("acct_id")
+                      .reset_index().assign(snapshot=t))
+    out = pd.concat(frames, ignore_index=True)
+    # 2. Row order must match rows exactly: the models pair them by position
+    if not (out.acct_id.to_numpy() == rows.acct_id.to_numpy()).all() or             not (out.snapshot.to_numpy() == rows.snapshot.to_numpy()).all():
+        raise ValueError("feature rows are not in the order of the rows to score")
+    cols = [c for c in out.columns if c not in ("acct_id", "snapshot")]
+    return out[["acct_id", "snapshot", *cols]].astype({"snapshot": "int16"})
+
+
 def build_export(inputs: dict, base_date: pd.Timestamp, cfg: dict) -> dict[str, pd.DataFrame]:
     """Tables of the export: events, nodes and the rows of each split (test without labels).
 
     Args:
         inputs: load_inputs output.
         base_date: day 0 of the simulation, for the day of the week.
-        cfg: daily scoring config (split fractions, regular_min_tx, min_history_days).
+        cfg: daily scoring config (split fractions, regular_min_tx, min_history_days, windows, exclude_features).
     """
     # 1. Nodes: every account, with a dense index the graph models use
     accounts = inputs["accounts"].sort_index()
@@ -90,10 +111,11 @@ def build_export(inputs: dict, base_date: pd.Timestamp, cfg: dict) -> dict[str, 
             "test": split_rows(label_fn, regular, range(s["test"].first_day, s["test"].last_day + 1),
                                True).drop(columns="label")}
 
-    # 4. Node index on every row; model inputs must not carry evaluation-only columns
+    # 4. Node index on every row, and the row features; model inputs must not carry evaluation-only columns
     tables = {"events": events, "nodes": nodes}
     for name, r in rows.items():
         tables[f"rows_{name}"] = r.assign(node=node_of.reindex(r.acct_id).to_numpy())
+        tables[f"features_{name}"] = row_features(inputs, r, cfg)
     for t in tables.values():
         check_feature_columns([c for c in t.columns if c != "acct_id"])
     return tables

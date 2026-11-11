@@ -4,6 +4,8 @@ Each day is one batch of transfers: the model predicts the day's transfers from 
 (self-supervised link loss), then adds them to the account memory, then scores accounts at the end of the day
 (account loss on train rows). Same-day order is unknown, so a day's messages are averaged and events are kept in a
 fixed canonical order. Validation and test scores come from a pass from day 0 without training.
+With account_features in the config, the account head also reads the LightGBM features of each row
+(features_<split>.parquet of the export), which separates what the graph memory adds from what the features carry.
 Run: python -m earlymule.models.tgn --data <export folder> [--config tgn.yaml] [--seed N] [--out DIR] [--max-epochs N]
 Writes scores_val.parquet, scores_test.parquet (acct_id, snapshot, score) and run_meta.json to --out
 (default experiments/runs/<run_name>[_<dataset>]/<commit>/seed<N>/).
@@ -90,17 +92,56 @@ class NeighborBuffer(LastNeighborLoader):
         self.neighbors[n_id] = torch.gather(all_nb, 1, perm)
 
 
-class TGNAccount(torch.nn.Module):
-    """TGN memory and attention embedding with a link head and an account head (mule logit)."""
+class FeatureScaler:
+    """log1p, then standardise with train-row statistics; a missing value becomes 0 plus a missing flag.
 
-    def __init__(self, num_nodes: int, deposit: torch.Tensor, dim: int, neighbors: int, device):
+    The features are counts, amounts, ratios and day gaps: non-negative with long tails, hence log1p.
+    NaN means "nothing to divide by" or "never happened", which the flag keeps apart from an average value.
+    """
+
+    def __init__(self, train: pd.DataFrame):
+        x = self._log(train)
+        self.columns = list(train.columns)
+        self.mean, self.std = np.nanmean(x, axis=0), np.nanstd(x, axis=0)
+        self.mean, self.std = np.nan_to_num(self.mean), np.where(self.std > 0, self.std, 1.0)
+        # Flags only for columns ever missing on train; the others would be constant
+        self.flagged = np.isnan(x).any(axis=0)
+
+    @staticmethod
+    def _log(frame: pd.DataFrame) -> np.ndarray:
+        """Values on a log scale; negative values would break log1p, so they are rejected."""
+        x = frame.to_numpy(dtype=np.float32)
+        if (x < 0).any():
+            raise ValueError("account features must be non-negative")
+        return np.log1p(x)
+
+    @property
+    def width(self) -> int:
+        """Number of model inputs: one per feature plus one per missing flag."""
+        return len(self.columns) + int(self.flagged.sum())
+
+    def transform(self, frame: pd.DataFrame) -> np.ndarray:
+        """Model inputs of each row, float32."""
+        x = self._log(frame[self.columns])
+        missing = np.isnan(x)
+        z = np.where(missing, 0.0, (x - self.mean) / self.std)
+        return np.c_[z, missing[:, self.flagged]].astype(np.float32)
+
+
+class TGNAccount(torch.nn.Module):
+    """TGN memory and attention embedding with a link head and an account head (mule logit).
+
+    n_features > 0 adds that many row features to the account head input.
+    """
+
+    def __init__(self, num_nodes: int, deposit: torch.Tensor, dim: int, neighbors: int, device, n_features: int = 0):
         super().__init__()
         msg_dim = 2
         self.memory = TGNMemory(num_nodes, msg_dim, dim, dim, message_module=IdentityMessage(msg_dim, dim, dim),
                                 aggregator_module=MeanAggregator())
         self.conv = TransformerConv(dim, dim // 2, heads=2, dropout=0.1, edge_dim=msg_dim + dim)
         self.link_src, self.link_dst, self.link_out = Linear(dim, dim), Linear(dim, dim), Linear(dim, 1)
-        self.head = torch.nn.Sequential(Linear(dim + 1, dim), torch.nn.ReLU(), Linear(dim, 1))
+        self.head = torch.nn.Sequential(Linear(dim + 1 + n_features, dim), torch.nn.ReLU(), Linear(dim, 1))
         self.register_buffer("deposit", deposit)
         self.to(device)
         self.buffer = NeighborBuffer(num_nodes, size=neighbors, device=device)
@@ -133,10 +174,10 @@ class TGNAccount(torch.nn.Module):
         self.memory.update_state(src, dst, stream.t[rows], stream.msg[rows])
         self.buffer.insert(src, dst)
 
-    def score(self, nodes: torch.Tensor, stream: Stream) -> torch.Tensor:
-        """Mule logit of each node at the end of the current day."""
-        z = self.embed(nodes, stream)
-        return self.head(torch.cat([z, self.deposit[nodes].unsqueeze(-1)], dim=-1)).squeeze(-1)
+    def score(self, nodes: torch.Tensor, stream: Stream, x: torch.Tensor | None = None) -> torch.Tensor:
+        """Mule logit of each node at the end of the current day; x = the rows' features when the head takes them."""
+        parts = [self.embed(nodes, stream), self.deposit[nodes].unsqueeze(-1)]
+        return self.head(torch.cat(parts if x is None else [*parts, x], dim=-1)).squeeze(-1)
 
 
 def sample_negatives(seen: torch.Tensor, n: int, generator: torch.Generator) -> torch.Tensor:
@@ -145,13 +186,33 @@ def sample_negatives(seen: torch.Tensor, n: int, generator: torch.Generator) -> 
     return pool[torch.randint(pool.numel(), (n,), generator=generator, device="cpu").to(pool.device)]
 
 
-def rows_by_day(rows: pd.DataFrame, device) -> dict[int, tuple]:
-    """Day -> (node tensor, label array or None, acct_id array) of the rows to score that day."""
-    out = {}
-    for d, g in rows.groupby("snapshot", sort=True):
+def rows_by_day(rows: pd.DataFrame, device, x: np.ndarray | None = None) -> dict[int, tuple]:
+    """Day -> (node tensor, label array or None, acct_id array, feature tensor or None) of that day's rows.
+
+    Args:
+        x: optional model inputs per row, in the positional order of rows (FeatureScaler.transform).
+    """
+    out, pos = {}, np.arange(len(rows))
+    for d, idx in pd.Series(pos).groupby(rows.snapshot.to_numpy(), sort=True):
+        g = rows.iloc[idx.to_numpy()]
         label = g.label.to_numpy() if "label" in g else None
-        out[int(d)] = (torch.tensor(g.node.to_numpy(), dtype=torch.long, device=device), label, g.acct_id.to_numpy())
+        feats = None if x is None else torch.as_tensor(x[idx.to_numpy()], device=device)
+        out[int(d)] = (torch.tensor(g.node.to_numpy(), dtype=torch.long, device=device), label, g.acct_id.to_numpy(),
+                       feats)
     return out
+
+
+def load_rows(data: Path, split: str, scaler: FeatureScaler | None, device) -> dict[int, tuple]:
+    """rows_<split> of an export by day, with the scaled row features when a scaler is given."""
+    rows = pd.read_parquet(data / f"rows_{split}.parquet")
+    if scaler is None:
+        return rows_by_day(rows, device)
+    feats = pd.read_parquet(data / f"features_{split}.parquet")
+    # The export writes both files in one row order; check it rather than trust it
+    if not (np.array_equal(feats.acct_id.to_numpy(), rows.acct_id.to_numpy())
+            and np.array_equal(feats.snapshot.to_numpy(), rows.snapshot.to_numpy())):
+        raise ValueError(f"features_{split} is not in the row order of rows_{split}")
+    return rows_by_day(rows, device, scaler.transform(feats))
 
 
 def train_epoch(model, stream: Stream, train_rows: dict, last_day: int, cfg: dict, opt, rng, gen) -> float:
@@ -175,11 +236,12 @@ def train_epoch(model, stream: Stream, train_rows: dict, last_day: int, cfg: dic
         seen[dst] = True
         # 3. Account loss at the end of the day: all mules, a share of the others
         if d in train_rows:
-            nodes, label, _ = train_rows[d]
+            nodes, label, _, x = train_rows[d]
             keep = (label == 1) | (rng.random(len(label)) < cfg["train_negative_rate"])
             if keep.any():
                 y = torch.as_tensor(label[keep], dtype=torch.float, device=nodes.device)
-                loss = loss + loss_fn(model.score(nodes[torch.as_tensor(keep, device=nodes.device)], stream), y)
+                k = torch.as_tensor(keep, device=nodes.device)
+                loss = loss + loss_fn(model.score(nodes[k], stream, None if x is None else x[k]), y)
         if loss.requires_grad:
             opt.zero_grad()
             loss.backward()
@@ -199,8 +261,9 @@ def score_pass(model, stream: Stream, score_rows: dict[str, dict], last_day: int
         model.observe(stream.day(d), stream)
         for name, rows in score_rows.items():
             if d in rows:
-                nodes, label, acct = rows[d]
-                frame = pd.DataFrame({"acct_id": acct, "snapshot": d, "score": model.score(nodes, stream).cpu().numpy()})
+                nodes, label, acct, x = rows[d]
+                frame = pd.DataFrame({"acct_id": acct, "snapshot": d,
+                                      "score": model.score(nodes, stream, x).cpu().numpy()})
                 out[name].append(frame if label is None else frame.assign(label=label))
     return {name: pd.concat(f, ignore_index=True) if f else pd.DataFrame() for name, f in out.items()}
 
@@ -236,11 +299,15 @@ def main() -> None:
     nodes = pd.read_parquet(data / "nodes.parquet")
     deposit = np.log1p(nodes.initial_deposit.to_numpy())
     deposit = torch.as_tensor((deposit - deposit.mean()) / deposit.std(), dtype=torch.float, device=device)
-    train_rows = rows_by_day(pd.read_parquet(data / "rows_train.parquet"), device)
-    val_rows = rows_by_day(pd.read_parquet(data / "rows_val.parquet"), device)
+    # Feature scaling from train rows only, as LightGBM fits on train rows only
+    scaler = None
+    if cfg.get("account_features"):
+        scaler = FeatureScaler(pd.read_parquet(data / "features_train.parquet").drop(columns=["acct_id", "snapshot"]))
+    train_rows = load_rows(data, "train", scaler, device)
+    val_rows = load_rows(data, "val", scaler, device)
 
     # 2. Train; keep the parameters of the epoch with the best validation PR-AUC
-    model = TGNAccount(len(nodes), deposit, cfg["dim"], cfg["neighbors"], device)
+    model = TGNAccount(len(nodes), deposit, cfg["dim"], cfg["neighbors"], device, scaler.width if scaler else 0)
     opt = torch.optim.Adam(model.parameters(), lr=cfg["lr"])
     best, best_epoch, best_state, epochs = -1.0, 0, None, []
     for epoch in range(1, cfg["max_epochs"] + 1):
@@ -261,7 +328,7 @@ def main() -> None:
 
     # 3. Scores of the best epoch for validation and test, from one pass over all days
     model.load_state_dict(best_state)
-    test_rows = rows_by_day(pd.read_parquet(data / "rows_test.parquet"), device)
+    test_rows = load_rows(data, "test", scaler, device)
     scores = score_pass(model, stream, {"val": val_rows, "test": test_rows}, splits["test"][1])
 
     # 4. Write scores and the run record; evaluation runs locally on these files

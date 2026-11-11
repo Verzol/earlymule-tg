@@ -1,0 +1,6 @@
+# TGN whose account head also reads the daily LightGBM features of each row (features_<split> of the export),
+# to separate what the graph memory adds from what the window features carry.
+# Run: python -m earlymule.models.tgn --data <export folder> --config tgn_features.yaml [--seed N]
+base: tgn.yaml
+run_name: tgn_features
+account_features: true

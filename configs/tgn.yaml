@@ -1,0 +1,10 @@
+# Minimal TGN for daily mule scoring. Run: python -m earlymule.models.tgn --data <export folder> [--seed N]
+run_name: tgn
+seed: 0
+dim: 100                   # memory, time encoding and embedding size (PyG TGN example)
+neighbors: 10              # most recent transfer partners kept per account
+lr: 0.001
+link_weight: 1.0           # weight of the self-supervised link loss next to the account loss
+train_negative_rate: 0.01  # share of non-mule train rows kept per day, as in the daily LightGBM run
+max_epochs: 20
+patience: 3                # epochs without a better validation PR-AUC before stopping

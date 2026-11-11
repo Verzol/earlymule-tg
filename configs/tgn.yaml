@@ -6,5 +6,8 @@ neighbors: 10              # most recent transfer partners kept per account
 lr: 0.001
 link_weight: 1.0           # weight of the self-supervised link loss next to the account loss
 train_negative_rate: 0.01  # share of non-mule train rows kept per day, as in the daily LightGBM run
-max_epochs: 20
-patience: 3                # epochs without a better validation PR-AUC before stopping
+max_epochs: 30
+# Epochs without a better validation PR-AUC before stopping. Validation PR-AUC swings between epochs
+# (80K seed 0: 0.35, 0.30, 0.30, 0.33 at epochs 5-8); with patience 3 seed 0 stopped at epoch 8 while seed 1
+# still improved up to epoch 14 (2026-11-11, commit 5a8e320)
+patience: 6

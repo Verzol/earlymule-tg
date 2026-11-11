@@ -196,7 +196,8 @@ def main() -> None:
     print(report["export"], flush=True)
 
     # 2. PyG's example as a known reference, then one epoch on our train-period transfers
-    report["jodie_wikipedia"] = jodie_example(Path("/tmp/jodie"), device, args.jodie_epochs)
+    if args.jodie_epochs > 0:  # 0 skips the reference run, e.g. on the laptop once Kaggle has checked it
+        report["jodie_wikipedia"] = jodie_example(Path("/tmp/jodie"), device, args.jodie_epochs)
     train_last_day = json.loads((folder / "manifest.json").read_text())["splits"]["train"][1]
     report["our_train_epoch"] = our_epoch(folder, device, train_last_day)
     print(report["our_train_epoch"], flush=True)

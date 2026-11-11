@@ -82,6 +82,8 @@ def log_run(
     metrics: dict,
     notes: str = "",
     log_file: str | Path | None = None,
+    commit: str | None = None,
+    dirty: bool | None = None,
 ) -> dict:
     """Append one run to the experiment log and return the row.
 
@@ -89,10 +91,12 @@ def log_run(
         config: everything needed to rerun (model params, split days, windows); stored as JSON.
         metrics: metric name to value; stored as JSON.
         log_file: defaults to <experiments>/experiments.csv from configs/paths.yaml.
+        commit, dirty: code state of a run made on another machine; default the local git state.
     """
     paths = load_paths()
     log_file = Path(log_file) if log_file else paths.experiments / "experiments.csv"
-    commit, dirty = git_state()
+    if commit is None:
+        commit, dirty = git_state()
 
     row = {
         "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),

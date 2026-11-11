@@ -11,7 +11,6 @@ dataset-metadata.json. Upload: kaggle datasets create -p <folder>; later: kaggle
 from __future__ import annotations
 
 import argparse
-import dataclasses
 import json
 from datetime import datetime, timezone
 
@@ -108,11 +107,10 @@ def main() -> None:
     kaggle = yaml.safe_load((repo_root() / "configs" / "kaggle.yaml").read_text(encoding="utf-8"))
     cfg = load_config(kaggle["scoring_config"])
 
-    # 1. Inputs of the chosen dataset; its simulator conf follows the conf_<dataset>.json naming
+    # 1. Inputs of the chosen dataset
     paths = load_paths()
     if args.dataset:
-        paths = dataclasses.replace(paths, dataset=args.dataset,
-                                    amlsim_conf=paths.amlsim_conf.parent / f"conf_{args.dataset}.json")
+        paths = paths.with_dataset(args.dataset)
     base_date = amlsim.read_base_date(paths.amlsim_conf)
     tables = build_export(load_inputs(paths), base_date, cfg)
 

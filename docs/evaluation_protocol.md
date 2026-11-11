@@ -113,4 +113,5 @@ Alongside: K = 5, 20 and 50 catch 0.678, 0.821 and 0.842 before forwarding. Over
 Each daily run saves its test scores and per-mule table under `experiments/runs/<run>/<commit>/seed<N>/`, so these views need no retraining:
 
 - `python -m earlymule.evaluation.views [--run lightgbm_daily]`: the daily results without hard negatives, logged as `<run>_no_hard_negatives`.
+- `python -m earlymule.evaluation.import_scores --from <folder>`: evaluates a model trained elsewhere (the temporal graph models run on Kaggle) from its `scores_{val,test}.parquet` and `run_meta.json`. Labels are attached here from the local ground truth, the validation labels the model saw are checked against them, and the run is logged with the commit it was trained at. LightGBM and imported runs share one evaluation function (`earlymule.evaluation.daily`); re-evaluating the saved LightGBM scores with it reproduces all 590 logged validation and test values.
 - `python -m earlymule.evaluation.compare A B [--k 10]`: the paired comparison of section 6 for every seed both runs have; writes `experiments/runs/comparisons/<A>_vs_<B>.csv` and prints whether A is better than B.

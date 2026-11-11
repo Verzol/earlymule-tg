@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import yaml
@@ -39,6 +39,10 @@ class Paths:
     def dataset_tmp_dir(self) -> Path:
         """Generator files of the selected run (alert_members.csv)."""
         return self.amlsim_tmp / self.dataset
+
+    def with_dataset(self, dataset: str) -> "Paths":
+        """Same locations for another AMLSim run; its conf follows the conf_<dataset>.json naming."""
+        return replace(self, dataset=dataset, amlsim_conf=self.amlsim_conf.parent / f"conf_{dataset}.json")
 
 
 def _read_yaml(path: Path) -> dict:

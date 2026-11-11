@@ -14,13 +14,11 @@ import json
 import time
 
 import numpy as np
-import pandas as pd
 
 from earlymule.data.splits import active_labels, chronological_splits
-from earlymule.evaluation.early_detection import (detection_table, early_detection, threshold_alerts,
-                                                  threshold_on_validation)
-from earlymule.evaluation.metrics import evaluate, threshold_classification
-from earlymule.evaluation.uncertainty import bootstrap_detection, bootstrap_ranking
+from earlymule.evaluation.daily import evaluate_daily, mule_table
+from earlymule.evaluation.early_detection import early_detection
+from earlymule.evaluation.metrics import evaluate
 from earlymule.experiment_log import log_run, run_dir, set_seed
 from earlymule.models.tabular import build_split, fit, config_from_cli, load_inputs, model_features
 
@@ -52,40 +50,18 @@ def main() -> None:
             "test": build_split(inputs, label_fn, days["test"], cfg, keep=regular, keep_unlabeled=True)}
     features = model_features(data["train"], cfg)
 
-    # 3. Train, then rank and time the detections under each daily alert budget
+    # 3. Train, then score validation and test and evaluate them as every model is (evaluation.daily)
     model = fit(data["train"], data["val"], features, cfg)
-    table = mules.reset_index()[["acct_id", "alert_id", "onset_day", "completion_day", "first_illicit_outflow_day",
-                                 "typology"]]
-    cooldown = cfg["alert_cooldown_days"]
-    metrics = {"best_iteration": int(model.best_iteration_), "features": len(features)}
     out_dir = run_dir(cfg["run_name"], cfg["seed"])
     model.booster_.save_model(str(out_dir / "model.txt"))
-    scored = {}
-    for name in ["val", "test"]:
-        # Log-odds, not probabilities: probabilities saturate at 1.0 and tie at the top of the ranking
-        frame = scored[name] = data[name].assign(score=model.predict(data[name][features], raw_score=True))
-        # Kept for error analysis and paired comparisons; evaluation-only file, never a model input
-        frame[["acct_id", "snapshot", "label", "typology", "score"]].to_parquet(out_dir / f"scores_{name}.parquet")
-        metrics[name] = {"ranking": evaluate(frame, cfg["recall_k"]),
-                         "early_detection": [early_detection(frame, table, k, cooldown, inputs["other_members"])
-                                             for k in cfg["alert_budgets"]]}
-    # Case-bootstrap intervals on test, for the ranking and for each alert budget
-    n, seed = cfg["bootstrap_samples"], cfg["seed"]
-    metrics["test"]["ranking"].update(bootstrap_ranking(frame, mules.alert_id, cfg["recall_k"], n, seed))
-    tables = []
-    for k, row in zip(cfg["alert_budgets"], metrics["test"]["early_detection"]):
-        tables.append(detection_table(frame, table, k, cooldown).assign(k=k))
-        row.update(bootstrap_detection(tables[-1], n, seed))
-    # Per-mule outcomes, kept for paired comparisons between models (evaluation only)
-    pd.concat(tables).to_parquet(out_dir / "detection_test.parquet")
+    # Log-odds, not probabilities: probabilities saturate at 1.0 and tie at the top of the ranking
+    scored = {name: data[name].assign(score=model.predict(data[name][features], raw_score=True))
+              for name in ["val", "test"]}
+    metrics = {"best_iteration": int(model.best_iteration_), "features": len(features),
+               **evaluate_daily(scored, inputs, cfg, out_dir)}
+    table, cooldown = mule_table(mules), cfg["alert_cooldown_days"]
 
-    # 4. Research plan's alert rule: one score threshold chosen on validation, no budget and no cooldown
-    theta = threshold_on_validation(scored["val"])
-    metrics["test"]["threshold"] = {"theta": round(theta, 4), **early_detection(
-        frame, table, None, 0, inputs["other_members"], threshold_alerts(frame, theta)),
-        "classification": threshold_classification(frame, theta)}
-
-    # 5. All accounts on test, reported next to the regular population; scored day by day to bound memory
+    # 4. All accounts on test, reported next to the regular population; scored day by day to bound memory
     score_day = lambda f: f[["snapshot", "label", "typology"]].assign(  # noqa: E731
         score=model.predict(f[features], raw_score=True))
     everyone = build_split(inputs, label_fn, days["test"], cfg, keep_unlabeled=True, reduce=score_day)
@@ -95,7 +71,7 @@ def main() -> None:
                             for k in cfg["alert_budgets"]]}
     metrics["seconds"] = round(time.time() - start, 1)
 
-    # 6. Log and report
+    # 5. Log and report
     config = {**cfg, "splits": {n: [s.first_day, s.last_day] for n, s in splits.items()},
               "train_rows": len(data["train"]), "feature_names": features}
     log_run(cfg["run_name"], config=config, seed=cfg["seed"], metrics=metrics)

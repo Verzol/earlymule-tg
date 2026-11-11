@@ -48,3 +48,10 @@ def test_dirty_paths_count_untracked_code_but_not_the_log():
     porcelain = " M experiments/experiments.csv\n?? src/earlymule/models/new.py\nR  a.py -> b.py\n"
     assert dirty_paths(porcelain) == ["src/earlymule/models/new.py", "b.py"]
     assert dirty_paths("?? experiments/experiments.csv\n") == []
+
+
+def test_log_records_commit_of_a_run_made_elsewhere(tmp_path):
+    """A given commit and dirty flag replace the local git state (runs trained on Kaggle)."""
+    log = tmp_path / "experiments.csv"
+    row = log_run("tgn", config={}, seed=0, metrics={}, log_file=log, commit="abc1234", dirty=False)
+    assert row["commit"] == "abc1234" and row["dirty"] is False

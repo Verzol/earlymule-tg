@@ -7,6 +7,7 @@ This document records how the EarlyMule-TG environments were built, with exact v
 | AMLSim | WSL2 (Ubuntu) on the laptop | Generating the synthetic dataset D1 | Ready (2026-10-19) |
 | Main Python | WSL2 on the laptop, CPU only | Data processing, features, tabular baselines, tests | Ready (2026-10-31) |
 | GPU | Kaggle notebook | Temporal GNN training | Ready (2026-11-10) |
+| Laptop GPU | WSL2, env `earlymule-gpu` (`environment-gpu.yml`) | Debugging the temporal GNN code before Kaggle runs | Ready (2026-11-11) |
 
 The current laptop has an NVIDIA RTX 4050 Laptop GPU (6 GB), usable for small debug runs; full GPU runs are on Kaggle.
 
@@ -222,3 +223,22 @@ Smoke test results:
 | Whole notebook | about 8.5 minutes, after about 90 minutes in the queue for a T4 |
 
 The queue, not the run, is the slow part; debugging on the laptop GPU avoids it.
+
+### 4.4. Laptop GPU environment (debugging)
+
+The Kaggle queue can take longer than a run (about 90 minutes on 2026-11-10), so code is debugged on the laptop first. Inside WSL, from the repository root:
+```bash
+conda env create -f environment-gpu.yml    # Python 3.12, torch 2.11.0+cu126, PyG 2.8.1, pip install -e .
+conda activate earlymule-gpu
+python -c "import torch; print(torch.cuda.get_device_name(0))"
+```
+The Windows driver (566.26) supports CUDA up to 12.7, so the env uses torch's CUDA 12.6 build; Kaggle's CUDA 13.0 build would not load. The env takes about 6.5 GB; the WSL disk lives on `D:\WSL\Ubuntu` since 2026-11-11 to keep drive C free.
+
+Same smoke test, one TGN epoch on the train-period transfers of `80K-earlymule-mule` (`--jodie-epochs 0`):
+
+| Machine | Seconds | Events per second | Peak GPU memory |
+|---|---:|---:|---:|
+| Kaggle, Tesla T4 | 292 | 3,683 | 218 MiB |
+| Laptop, RTX 4050 6 GB | 382 | 2,816 | 217 MiB |
+
+The laptop is about 1.3 times slower and uses 1.9 GB of RAM for this run.

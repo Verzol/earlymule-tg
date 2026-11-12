@@ -9,6 +9,7 @@ With account_features in the config, the account head also reads the LightGBM fe
 With use_graph: false the memory, attention and link loss are left out and the same head is trained on the
 features alone, as the control for that comparison.
 Run: python -m earlymule.models.tgn --data <export folder> [--config tgn.yaml] [--seed N] [--out DIR] [--max-epochs N]
+     [--lr X]
 Writes scores_val.parquet, scores_test.parquet (acct_id, snapshot, score) and run_meta.json to --out
 (default experiments/runs/<run_name>[_<dataset>]/<commit>/seed<N>/).
 """
@@ -297,11 +298,15 @@ def main() -> None:
     parser.add_argument("--config", default="tgn.yaml")
     parser.add_argument("--seed", type=int)
     parser.add_argument("--max-epochs", type=int)
+    parser.add_argument("--lr", type=float, help="learning rate for a sweep; the run is logged as <run_name>_lr<X>")
     parser.add_argument("--out")
     args = parser.parse_args()
     cfg = load_config(args.config)
     cfg["seed"] = cfg["seed"] if args.seed is None else args.seed
     cfg["max_epochs"] = args.max_epochs or cfg["max_epochs"]
+    # Each swept rate gets its own run name, so its rows in experiments.csv stay apart from the default run
+    if args.lr is not None:
+        cfg["lr"], cfg["run_name"] = args.lr, f"{cfg['run_name']}_lr{args.lr:g}"
     set_seed(cfg["seed"])
     rng, gen = np.random.default_rng(cfg["seed"]), torch.Generator().manual_seed(cfg["seed"])
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

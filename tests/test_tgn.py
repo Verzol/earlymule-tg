@@ -139,3 +139,22 @@ def test_train_epoch_with_features_gives_finite_loss():
                        {"link_weight": 1.0, "train_negative_rate": 1.0}, opt, np.random.default_rng(0),
                        torch.Generator().manual_seed(0))
     assert np.isfinite(loss) and loss > 0
+
+
+def test_without_graph_scores_ignore_transfers():
+    """use_graph=False: scores depend on deposit and features only, and a training pass still runs."""
+    torch.manual_seed(0)
+    m = TGNAccount(NODES, torch.arange(NODES, dtype=torch.float), dim=8, neighbors=3, device="cpu", n_features=2,
+                   use_graph=False)
+    assert not hasattr(m, "memory")
+    rows = pd.DataFrame({"acct_id": [1, 2, 3] * 4, "snapshot": np.repeat([2, 3, 4, 5], 3), "node": [1, 2, 3] * 4,
+                         "label": [1.0, 0.0, 0.0] * 4})
+    x = np.random.default_rng(0).normal(size=(12, 2)).astype(np.float32)
+    a = score_pass(m, Stream(events(0), 8, "cpu"), {"s": rows_by_day(rows, "cpu", x)}, 5)["s"]
+    b = score_pass(m, Stream(events(1), 8, "cpu"), {"s": rows_by_day(rows, "cpu", x)}, 5)["s"]
+    np.testing.assert_allclose(a.score, b.score, atol=1e-6)
+    opt = torch.optim.Adam(m.parameters(), lr=1e-3)
+    loss = train_epoch(m, Stream(events(), 8, "cpu"), rows_by_day(rows, "cpu", x), 8,
+                       {"link_weight": 1.0, "train_negative_rate": 1.0}, opt, np.random.default_rng(0),
+                       torch.Generator().manual_seed(0))
+    assert np.isfinite(loss) and loss > 0

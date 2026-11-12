@@ -1,0 +1,6 @@
+# Control for tgn_features: the same account head, training loop, negative sampling and early stopping,
+# without the graph (no memory, attention or link loss). If it matches tgn_features, the gain over LightGBM
+# comes from the neural head, not from the graph. Run: python -m earlymule.models.tgn --config mlp_features.yaml
+base: tgn_features.yaml
+run_name: mlp_features
+use_graph: false

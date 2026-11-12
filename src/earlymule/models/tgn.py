@@ -6,6 +6,8 @@ Each day is one batch of transfers: the model predicts the day's transfers from 
 fixed canonical order. Validation and test scores come from a pass from day 0 without training.
 With account_features in the config, the account head also reads the LightGBM features of each row
 (features_<split>.parquet of the export), which separates what the graph memory adds from what the features carry.
+With use_graph: false the memory, attention and link loss are left out and the same head is trained on the
+features alone, as the control for that comparison.
 Run: python -m earlymule.models.tgn --data <export folder> [--config tgn.yaml] [--seed N] [--out DIR] [--max-epochs N]
 Writes scores_val.parquet, scores_test.parquet (acct_id, snapshot, score) and run_meta.json to --out
 (default experiments/runs/<run_name>[_<dataset>]/<commit>/seed<N>/).
@@ -131,25 +133,37 @@ class FeatureScaler:
 class TGNAccount(torch.nn.Module):
     """TGN memory and attention embedding with a link head and an account head (mule logit).
 
-    n_features > 0 adds that many row features to the account head input.
+    n_features > 0 adds that many row features to the account head input. use_graph=False drops the memory,
+    attention and link head: the account head then reads only the deposit and the row features.
     """
 
-    def __init__(self, num_nodes: int, deposit: torch.Tensor, dim: int, neighbors: int, device, n_features: int = 0):
+    def __init__(self, num_nodes: int, deposit: torch.Tensor, dim: int, neighbors: int, device, n_features: int = 0,
+                 use_graph: bool = True):
         super().__init__()
-        msg_dim = 2
-        self.memory = TGNMemory(num_nodes, msg_dim, dim, dim, message_module=IdentityMessage(msg_dim, dim, dim),
-                                aggregator_module=MeanAggregator())
-        self.conv = TransformerConv(dim, dim // 2, heads=2, dropout=0.1, edge_dim=msg_dim + dim)
-        self.link_src, self.link_dst, self.link_out = Linear(dim, dim), Linear(dim, dim), Linear(dim, 1)
-        self.head = torch.nn.Sequential(Linear(dim + 1 + n_features, dim), torch.nn.ReLU(), Linear(dim, 1))
+        self.use_graph = use_graph
+        if use_graph:
+            msg_dim = 2
+            self.memory = TGNMemory(num_nodes, msg_dim, dim, dim, message_module=IdentityMessage(msg_dim, dim, dim),
+                                    aggregator_module=MeanAggregator())
+            self.conv = TransformerConv(dim, dim // 2, heads=2, dropout=0.1, edge_dim=msg_dim + dim)
+            self.link_src, self.link_dst, self.link_out = Linear(dim, dim), Linear(dim, dim), Linear(dim, 1)
+        head_in = (dim if use_graph else 0) + 1 + n_features
+        self.head = torch.nn.Sequential(Linear(head_in, dim), torch.nn.ReLU(), Linear(dim, 1))
         self.register_buffer("deposit", deposit)
         self.to(device)
-        self.buffer = NeighborBuffer(num_nodes, size=neighbors, device=device)
+        if use_graph:
+            self.buffer = NeighborBuffer(num_nodes, size=neighbors, device=device)
 
     def reset(self):
         """Empty memory and neighbours: every pass starts at day 0."""
-        self.memory.reset_state()
-        self.buffer.reset_state()
+        if self.use_graph:
+            self.memory.reset_state()
+            self.buffer.reset_state()
+
+    def detach(self):
+        """Cut the memory's gradient history after a training step."""
+        if self.use_graph:
+            self.memory.detach()
 
     def embed(self, nodes: torch.Tensor, stream: Stream) -> torch.Tensor:
         """Embedding of each node from its memory and its recent neighbours (state after the last observe)."""
@@ -169,14 +183,16 @@ class TGNAccount(torch.nn.Module):
     def observe(self, rows: slice, stream: Stream):
         """Add one day's transfers to memory and neighbours."""
         src, dst = stream.src[rows], stream.dst[rows]
-        if src.numel() == 0:
+        if src.numel() == 0 or not self.use_graph:
             return
         self.memory.update_state(src, dst, stream.t[rows], stream.msg[rows])
         self.buffer.insert(src, dst)
 
     def score(self, nodes: torch.Tensor, stream: Stream, x: torch.Tensor | None = None) -> torch.Tensor:
         """Mule logit of each node at the end of the current day; x = the rows' features when the head takes them."""
-        parts = [self.embed(nodes, stream), self.deposit[nodes].unsqueeze(-1)]
+        parts = [self.deposit[nodes].unsqueeze(-1)]
+        if self.use_graph:
+            parts.insert(0, self.embed(nodes, stream))
         return self.head(torch.cat(parts if x is None else [*parts, x], dim=-1)).squeeze(-1)
 
 
@@ -226,7 +242,7 @@ def train_epoch(model, stream: Stream, train_rows: dict, last_day: int, cfg: dic
         src, dst = stream.src[rows], stream.dst[rows]
         loss = torch.zeros((), device=seen.device)
         # 1. Link loss: predict the day's transfers from the state before them
-        if src.numel() and seen.any():
+        if model.use_graph and src.numel() and seen.any():
             pos = model.link_logits(src, dst, stream)
             neg = model.link_logits(src, sample_negatives(seen, src.numel(), gen), stream)
             loss = loss + cfg["link_weight"] * (loss_fn(pos, torch.ones_like(pos)) + loss_fn(neg, torch.zeros_like(neg)))
@@ -247,7 +263,7 @@ def train_epoch(model, stream: Stream, train_rows: dict, last_day: int, cfg: dic
             loss.backward()
             opt.step()
             total, steps = total + loss.item(), steps + 1
-        model.memory.detach()
+        model.detach()
     return total / max(steps, 1)
 
 
@@ -307,7 +323,8 @@ def main() -> None:
     val_rows = load_rows(data, "val", scaler, device)
 
     # 2. Train; keep the parameters of the epoch with the best validation PR-AUC
-    model = TGNAccount(len(nodes), deposit, cfg["dim"], cfg["neighbors"], device, scaler.width if scaler else 0)
+    model = TGNAccount(len(nodes), deposit, cfg["dim"], cfg["neighbors"], device, scaler.width if scaler else 0,
+                       cfg.get("use_graph", True))
     opt = torch.optim.Adam(model.parameters(), lr=cfg["lr"])
     best, best_epoch, best_state, epochs = -1.0, 0, None, []
     for epoch in range(1, cfg["max_epochs"] + 1):

@@ -1,6 +1,6 @@
 # Evaluation protocol v0.3
 
-Version 0.3, 2026-11-10. Fixes how every model in the thesis is scored, so that LightGBM, the graph baselines and EarlyMule-TG are compared under the same rules. The dataset, labels and allowed columns are in `docs/data_spec.md`. Choices that stay within the research plan are decisions, each with its reason; the one change to a definition in the plan, the primary early-detection metric, was sent to the advisor on 2026-11-09 (section 8). Section 9 lists what is not implemented yet.
+Version 0.3, 2026-11-10. Fixes how every model in the thesis is scored, so that LightGBM, the graph baselines and EarlyMule-TG are compared under the same rules. The dataset, labels and allowed columns are in `docs/data_spec.md`. Choices that stay within the research plan are decisions, each with its reason; the one change to a definition in the plan, the primary early-detection metric, was sent to the advisor on 2026-11-09 and, with no reply by 2026-11-12, is applied as proposed (section 8). Section 9 lists what is not implemented yet.
 
 v0.2 answered two reviews of v0.1: finished mules stay in the ranking, the alert budget counts new accounts with a 30-day cooldown, the primary metric is detection before the first forwarding, model comparisons use a paired case bootstrap, and ties and the start of the alert history follow fixed rules. v0.3 adds the research plan's threshold rule, its secondary metrics and per-typology table, results over all accounts for the daily task, and early stopping on validation PR-AUC only (section 7). All logged runs were redone under these rules (commit `c62fa61`).
 
@@ -108,7 +108,7 @@ Alongside: K = 5, 20 and 50 catch 0.678, 0.821 and 0.842 before forwarding. Over
 
 | # | Decision | Reason | Status |
 |---|---|---|---|
-| 1 | Main task: daily early detection; primary metric: share of mules alerted before their first forwarding at K = 10. Detection before and by completion (the plan's definition) and the weekly ranking are still reported | Before its first outflow the money is still in the account and can be held | Changes the plan's definition; sent to the advisor 2026-11-09 |
+| 1 | Main task: daily early detection; primary metric: share of mules alerted before their first forwarding at K = 10. Detection before and by completion (the plan's definition) and the weekly ranking are still reported | Before its first outflow the money is still in the account and can be held | Changes the plan's definition; sent to the advisor 2026-11-09, no reply by 2026-11-12, applied as proposed; switching back needs only re-evaluation of the saved scores |
 | 2 | Hard negatives (sources, exits, one-sided hubs) stay negatives | A bank does not know which accounts belong to a case | Applied; results without them reported alongside |
 | 3 | Scored population: regular accounts, at least 20 transfers up to day t; all accounts reported alongside | Over all accounts activity alone separates mules (section 4) | Applied |
 | 4 | Alert budget: K = 10 new accounts per day with a 30-day cooldown; 5, 20, 50 and the plan's threshold rule also reported | A bank reviews a fixed number of cases per day; 30 days is the longest feature window | Applied |

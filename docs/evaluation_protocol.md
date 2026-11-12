@@ -113,6 +113,8 @@ Alongside: K = 5, 20 and 50 catch 0.678, 0.821 and 0.842 before forwarding. Over
 | 3 | Scored population: regular accounts, at least 20 transfers up to day t; all accounts reported alongside | Over all accounts activity alone separates mules (section 4) | Applied |
 | 4 | Alert budget: K = 10 new accounts per day with a 30-day cooldown; 5, 20, 50 and the plan's threshold rule also reported | A bank reviews a fixed number of cases per day; 30 days is the longest feature window | Applied |
 | 5 | Folds: one fixed time split with three seeds | Allowed by the plan (section 21.4); keeps the full test period | Applied |
+| 6 | The TGN with the LightGBM features is the plan's ablation row "TGN + multi-scale behaviour", a step towards EarlyMule-TG, not an outside baseline. The role and role-transition steps must each beat the step before them, so the bar for EarlyMule-TG is this model, not LightGBM or the plain TGN | The plan's ablation table adds multi-scale behaviour to the TGN before the role modules; each added module has to show its own gain | Applied 2026-11-12 |
+| 7 | Early stopping stays on validation PR-AUC for every model, although test detection before forwarding does not always follow it (control learning-rate sweep, section 7) | Changing the stopping metric means rerunning every model; to be decided once the outside baselines are in | Open |
 
 ## 9. Commands on saved run outputs
 

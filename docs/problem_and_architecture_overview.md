@@ -132,12 +132,14 @@ The current executable pipeline:
 
 **Current LightGBM does not use learned graph embeddings.** Counterparty counts carry network information, but they are not a graph model that learns relationships or temporal memory.
 
+A minimal TGN (`src/earlymule/models/tgn.py`) reads the same transfers as an event stream, keeps a memory per account and is trained on Kaggle; its scores go through the same evaluation as LightGBM. With the 1-, 7- and 30-day statistics added to its account head it alerts more mules before their first forwarding than LightGBM; the TGN alone and the statistics alone without the graph do not (`docs/evaluation_protocol.md` section 7).
+
 The alert list is currently an experimental output. The repository does not yet implement a live banking integration, an investigation interface or an operational response workflow.
 
 ## 7. What architecture does EarlyMule-TG propose?
 
 ![Proposed architecture: transfers observed by the scoring day feed a temporal graph branch and a multi-window behavior branch. Graph relationships, current roles and role transitions are fused into an account risk score.](assets/proposed_architecture.png)
-<!-- alt: Window statistics are implemented. The temporal graph, learned role and role-transition modules, and their fusion are proposed components that are not implemented yet. | source: assets/proposed_architecture.svg -->
+<!-- alt: Window statistics and a minimal TGN over the transfer stream are implemented, and the TGN account head already reads the window statistics. The learned role and role-transition modules and the full fusion are proposed components that are not implemented yet. | source: assets/proposed_architecture.svg -->
 
 *Figure 2. The proposed research architecture and current implementation status. [Editable SVG](assets/proposed_architecture.svg).*
 
@@ -145,12 +147,12 @@ Both branches use transfers observed by the scoring day:
 
 | Component | Intended representation | Status |
 |---|---|---|
-| Time-aware transaction graph | Who transacts with whom, amounts and the evolution of these relationships | Graph construction for a learned graph model is not implemented |
-| Temporal graph encoder, planned with TGN | Account representations updated from observed transaction events | Not implemented |
+| Time-aware transaction graph | Who transacts with whom, amounts and the evolution of these relationships | Transfer event stream with each account's 10 most recent partners, used by the TGN; daily snapshot graphs for static graph models not implemented |
+| Temporal graph encoder (TGN) | Account representations updated from observed transaction events | Minimal TGN implemented: memory per account, attention over recent partners, link and account losses |
 | 1-, 7- and 30-day statistics | Counts, amounts, counterparties, new counterparties and changes across windows | Many aggregates implemented; the plan's complete feature list is not |
 | Behavioral role encoder | A learned representation of receiving, collecting, relaying or distributing | Not implemented |
 | Role-transition encoder | Differences from earlier states or between time scales | Not implemented |
-| Fusion and risk scoring | Combine graph relationships, current role and role change | Not implemented |
+| Fusion and risk scoring | Combine graph relationships, current role and role change | Graph embedding and window statistics concatenated in one account head; role inputs not implemented |
 
 The role encoders consume observable behavior. Simulator labels, case types and simulator-known roles must not become prediction features.
 

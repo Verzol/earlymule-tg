@@ -259,3 +259,31 @@ def test_full_model_scores_ignore_transfers_after_the_day():
     changed = e.assign(log_amount=np.where(e.day.gt(5), 99.0, e.log_amount), dst=np.where(e.day.gt(5), 0, e.dst))
     moved = score_pass(m, Stream(changed, 3, "cpu"), {"s": rows_by_day(rows, "cpu", x)}, 5)["s"]
     np.testing.assert_allclose(full.score, moved.score, atol=1e-6)
+
+
+def test_temporal_transition_reads_the_lagged_role(tmp_path):
+    """With lag rows the input is [x(t) ; x(t − 7)]; changing only the lagged half changes q, and a misordered lag
+    file is refused."""
+    from earlymule.models.tgn import RoleEncoder, TransitionEncoder
+    rows = pd.DataFrame({"acct_id": [1, 2, 1, 2], "snapshot": [3, 3, 4, 4], "node": [1, 2, 1, 2]})
+    cur = rows[["acct_id", "snapshot"]].assign(a_1d=[0.0, 5.0, 1.0, 9.0], b_7d=[1.0, 2.0, 3.0, 4.0], c_30d=[2.0] * 4,
+                                               d=[0.0] * 4)
+    lag = cur.assign(a_1d=[0.0] * 4)
+    rows.to_parquet(tmp_path / "rows_test.parquet")
+    cur.to_parquet(tmp_path / "features_test.parquet")
+    lag.to_parquet(tmp_path / "features_lag7_test.parquet")
+    sc = FeatureScaler(cur.drop(columns=["acct_id", "snapshot"]))
+    by_day = load_rows(tmp_path, "test", sc, "cpu", lag=7)
+    assert by_day[4][3].shape[1] == 2 * sc.width
+    torch.manual_seed(0)
+    m = TGNAccount(NODES, torch.zeros(NODES), dim=8, neighbors=3, device="cpu", n_features=sc.width,
+                   role=RoleEncoder({"1d": [0], "7d": [1], "30d": [2]}, [3], dim=4),
+                   transition=TransitionEncoder(4, temporal=True)).eval()
+    s = score_pass(m, Stream(events(), 8, "cpu"), {"s": by_day}, 4)["s"]
+    same = {d: (*v[:3], torch.cat([v[3][:, :sc.width], v[3][:, :sc.width]], dim=1)) for d, v in by_day.items()}
+    s_same = score_pass(m, Stream(events(), 8, "cpu"), {"s": same}, 4)["s"]
+    assert not np.allclose(s.score, s_same.score)
+    lag.iloc[[0, 1]] = lag.iloc[[1, 0]].to_numpy()
+    lag.to_parquet(tmp_path / "features_lag7_test.parquet")
+    with pytest.raises(ValueError):
+        load_rows(tmp_path, "test", sc, "cpu", lag=7)

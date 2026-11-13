@@ -188,22 +188,27 @@ class RoleEncoder(torch.nn.Module):
 
 
 class TransitionEncoder(torch.nn.Module):
-    """Role transition of the research plan (section 14): q = MLP([r ; r^(1) − r^(7) ; r^(7) − r^(30)]).
+    """Role transition of the research plan (section 14): q = MLP([r ; r^(1) − r^(7) ; r^(7) − r^(30)]), and with
+    temporal=True also r(t) − r(t − δ).
 
     The differences between scales compare today's role with the last week's and the last week's with the month's,
-    so a sudden switch (a quiet receiver that starts forwarding) shows as a large difference. All three windows end
-    at day t, so no state from earlier days is needed.
+    so a sudden switch (a quiet receiver that starts forwarding) shows as a large difference; all three windows end
+    at day t. The temporal difference is the plan's own definition: the same role encoder applied to the account's
+    features δ days earlier, so the change is measured in one role space.
     """
 
-    def __init__(self, dim: int):
+    def __init__(self, dim: int, temporal: bool = False):
         super().__init__()
-        self.mlp = torch.nn.Sequential(Linear(3 * dim, dim), torch.nn.ReLU(), Linear(dim, dim), torch.nn.ReLU())
+        self.temporal = temporal
+        self.mlp = torch.nn.Sequential(Linear((4 if temporal else 3) * dim, dim), torch.nn.ReLU(), Linear(dim, dim),
+                                       torch.nn.ReLU())
         self.dim = dim
 
-    def forward(self, r: torch.Tensor, per_window: torch.Tensor) -> torch.Tensor:
-        """r [B, dim], per_window [B, 3, dim] in window order 1, 7, 30 days -> q [B, dim]."""
+    def forward(self, r: torch.Tensor, per_window: torch.Tensor, r_lag: torch.Tensor | None = None) -> torch.Tensor:
+        """r [B, dim], per_window [B, 3, dim] in window order 1, 7, 30 days, r_lag [B, dim] -> q [B, dim]."""
         short, long = per_window[:, 0] - per_window[:, 1], per_window[:, 1] - per_window[:, 2]
-        return self.mlp(torch.cat([r, short, long], dim=-1))
+        parts = [r, short, long] + ([r - r_lag] if self.temporal else [])
+        return self.mlp(torch.cat(parts, dim=-1))
 
 
 class GatedFusion(torch.nn.Module):
@@ -304,9 +309,15 @@ class TGNAccount(torch.nn.Module):
             # 1. TGN alone, TGN with raw features, or the control without the graph
             parts = [p for p in (h, deposit, x) if p is not None]
         else:
-            # 2. Role state, then transition, then gated fusion, each step on top of the previous one
+            # 2. Role state, then transition, then gated fusion, each step on top of the previous one. With a temporal
+            #    transition x is [x(t) ; x(t − δ)]: the lagged role is computed first, so role.last keeps day t
+            r_lag = None
+            if self.transition is not None and self.transition.temporal:
+                width = x.shape[1] // 2
+                x, x_lag = x[:, :width], x[:, width:]
+                r_lag = self.role(x_lag)[0]
             r, _, rest = self.role(x)
-            q = self.transition(r, self.role.per_window) if self.transition else None
+            q = self.transition(r, self.role.per_window, r_lag) if self.transition else None
             if self.fusion:
                 parts = [self.fusion(h, r, q), deposit, rest]
             else:
@@ -336,17 +347,26 @@ def rows_by_day(rows: pd.DataFrame, device, x: np.ndarray | None = None) -> dict
     return out
 
 
-def load_rows(data: Path, split: str, scaler: FeatureScaler | None, device) -> dict[int, tuple]:
-    """rows_<split> of an export by day, with the scaled row features when a scaler is given."""
+def load_rows(data: Path, split: str, scaler: FeatureScaler | None, device, lag: int = 0) -> dict[int, tuple]:
+    """rows_<split> of an export by day, with the scaled row features when a scaler is given.
+
+    Args:
+        lag: if > 0, the features of the same account `lag` days earlier (features_lag<lag>_<split>) are appended
+            after the current ones, scaled by the same scaler, so the model input is [x(t) ; x(t - lag)].
+    """
     rows = pd.read_parquet(data / f"rows_{split}.parquet")
     if scaler is None:
         return rows_by_day(rows, device)
-    feats = pd.read_parquet(data / f"features_{split}.parquet")
-    # The export writes both files in one row order; check it rather than trust it
-    if not (np.array_equal(feats.acct_id.to_numpy(), rows.acct_id.to_numpy())
-            and np.array_equal(feats.snapshot.to_numpy(), rows.snapshot.to_numpy())):
-        raise ValueError(f"features_{split} is not in the row order of rows_{split}")
-    return rows_by_day(rows, device, scaler.transform(feats))
+    names = [f"features_{split}"] + ([f"features_lag{lag}_{split}"] if lag else [])
+    parts = []
+    for name in names:
+        feats = pd.read_parquet(data / f"{name}.parquet")
+        # The export writes every feature file in the row order of rows_<split>; check it rather than trust it
+        if not (np.array_equal(feats.acct_id.to_numpy(), rows.acct_id.to_numpy())
+                and np.array_equal(feats.snapshot.to_numpy(), rows.snapshot.to_numpy())):
+            raise ValueError(f"{name} is not in the row order of rows_{split}")
+        parts.append(scaler.transform(feats))
+    return rows_by_day(rows, device, np.concatenate(parts, axis=1))
 
 
 def train_epoch(model, stream: Stream, train_rows: dict, last_day: int, cfg: dict, opt, rng, gen) -> float:
@@ -457,8 +477,10 @@ def main() -> None:
     scaler = None
     if cfg.get("account_features"):
         scaler = FeatureScaler(pd.read_parquet(data / "features_train.parquet").drop(columns=["acct_id", "snapshot"]))
-    train_rows = load_rows(data, "train", scaler, device)
-    val_rows = load_rows(data, "val", scaler, device)
+    # Temporal role transition reads the features of each row's account `transition_lag_days` earlier as well
+    lag = cfg.get("transition_lag_days", 0)
+    train_rows = load_rows(data, "train", scaler, device, lag)
+    val_rows = load_rows(data, "val", scaler, device, lag)
 
     # 2. Train; keep the parameters of the epoch with the best validation PR-AUC
     # Role encoder: the window features enter through one MLP per window and attention over the windows
@@ -466,7 +488,7 @@ def main() -> None:
     if cfg.get("role_encoder"):
         groups, rest = role_groups(scaler.input_names)
         role = RoleEncoder(groups, rest, cfg["role_dim"])
-    transition = TransitionEncoder(cfg["role_dim"]) if cfg.get("role_transition") else None
+    transition = TransitionEncoder(cfg["role_dim"], temporal=bool(lag)) if cfg.get("role_transition") else None
     fusion = GatedFusion(cfg["dim"], cfg["role_dim"], cfg["dim"]) if cfg.get("gated_fusion") else None
     model = TGNAccount(len(nodes), deposit, cfg["dim"], cfg["neighbors"], device, scaler.width if scaler else 0,
                        cfg.get("use_graph", True), role, transition, fusion)
@@ -490,7 +512,7 @@ def main() -> None:
 
     # 3. Scores of the best epoch for validation and test, from one pass over all days
     model.load_state_dict(best_state)
-    test_rows = load_rows(data, "test", scaler, device)
+    test_rows = load_rows(data, "test", scaler, device, lag)
     scores = score_pass(model, stream, {"val": val_rows, "test": test_rows}, splits["test"][1])
 
     # 4. Write scores and the run record; evaluation runs locally on these files

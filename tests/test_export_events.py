@@ -62,3 +62,20 @@ def test_row_features_match_snapshot_features():
         direct = snapshot_features(tx, ids, t, (1, 7)).drop(columns="n_tx_hist")
         got = feats[feats.snapshot.eq(t)].set_index("acct_id")[direct.columns]
         pd.testing.assert_frame_equal(got, direct, check_names=False)
+
+
+def test_lagged_features_are_the_features_seven_days_earlier():
+    """features_lag7 of a row equals the point-in-time features of the same account at snapshot - 7, same order."""
+    tx = random_tx(accounts=6, days=20)
+    accounts = pd.DataFrame({"initial_deposit": np.arange(6.0)}, index=pd.Index(range(1, 7), name="acct_id"))
+    mules = pd.DataFrame({"onset_day": [3], "completion_day": [5]}, index=pd.Index([1], name="acct_id"))
+    cfg = {"total_days": 20, "split_fractions": [0.6, 0.2, 0.2], "regular_min_tx": 2, "min_history_days": 1,
+           "windows": [1, 7], "exclude_features": ["n_tx_hist"]}
+    out = build_export({"tx": tx, "accounts": accounts, "mules": mules}, pd.Timestamp("2017-01-01", tz="UTC"), cfg)
+    rows, lag = out["rows_test"], out["features_lag7_test"]
+    assert (lag[["acct_id", "snapshot"]].to_numpy() == rows[["acct_id", "snapshot"]].to_numpy()).all()
+    t = int(rows.snapshot.iloc[-1])
+    ids = pd.Index(rows.acct_id[rows.snapshot.eq(t)])
+    direct = snapshot_features(tx, ids, t - 7, (1, 7)).drop(columns="n_tx_hist")
+    got = lag[lag.snapshot.eq(t)].set_index("acct_id")[direct.columns]
+    pd.testing.assert_frame_equal(got, direct, check_names=False)

@@ -3,10 +3,11 @@
 Kaggle only trains and scores; evaluation runs locally on the returned scores, so test labels are not exported.
 Rows follow the daily scoring run (configs/daily.yaml): regular accounts, train from day min_history_days,
 validation and test every day with finished mules kept unlabelled. features_<split> holds the LightGBM
-point-in-time features of each row, in the same row order.
+point-in-time features of each row, in the same row order; features_lag7_<split> holds the same features of the
+same account LAG_DAYS earlier (day t - 7), for the temporal role transition r(t) - r(t - 7).
 Run: python -m earlymule.data.export_events [--dataset 80K-earlymule-mule]
 Writes data/processed/kaggle/<dataset>/: events, nodes, rows_{train,val,test}.parquet,
-features_{train,val,test}.parquet, manifest.json, dataset-metadata.json. Upload: kaggle datasets create -p <folder>; later: kaggle datasets version -p <folder> -m "..."
+features_{train,val,test}.parquet, features_lag7_{train,val,test}.parquet, manifest.json, dataset-metadata.json. Upload: kaggle datasets create -p <folder>; later: kaggle datasets version -p <folder> -m "..."
 """
 
 from __future__ import annotations
@@ -26,6 +27,9 @@ from earlymule.data.splits import active_labels, chronological_splits
 from earlymule.experiment_log import git_state
 from earlymule.features.point_in_time import snapshot_features
 from earlymule.models.tabular import load_config, load_inputs
+
+# Days between a row and its lagged features (research plan section 14: Δr = r(t) − r(t − δ), δ = one week)
+LAG_DAYS = 7
 
 
 def regular_from_day(tx: pd.DataFrame, min_tx: int) -> pd.Series:
@@ -55,15 +59,16 @@ def split_rows(label_fn, regular_from: pd.Series, days, keep_unlabeled: bool) ->
     return pd.concat(frames, ignore_index=True).astype({"acct_id": "int64", "snapshot": "int16", "label": "float32"})
 
 
-def row_features(inputs: dict, rows: pd.DataFrame, cfg: dict) -> pd.DataFrame:
-    """LightGBM features of each (acct_id, snapshot) row at the end of its day, in the order of rows.
+def row_features(inputs: dict, rows: pd.DataFrame, cfg: dict, lag: int = 0) -> pd.DataFrame:
+    """LightGBM features of each (acct_id, snapshot) row at the end of day snapshot - lag, in the order of rows.
 
     Same columns as the daily LightGBM run minus initial_deposit, which the graph models read from nodes.
+    The snapshot column keeps the row's own day, so lagged and current features pair by position.
     """
-    # 1. One snapshot per day, on that day's accounts only
+    # 1. One snapshot per day, on that day's accounts only; a lagged snapshot reads transfers up to t - lag < t
     frames = []
     for t, ids in rows.groupby("snapshot", sort=False).acct_id:
-        f = snapshot_features(inputs["tx"], pd.Index(ids), int(t), tuple(cfg["windows"]), inputs.get("first_day"))
+        f = snapshot_features(inputs["tx"], pd.Index(ids), int(t) - lag, tuple(cfg["windows"]), inputs.get("first_day"))
         frames.append(f.drop(columns=cfg.get("exclude_features", [])).rename_axis("acct_id")
                       .reset_index().assign(snapshot=t))
     out = pd.concat(frames, ignore_index=True)
@@ -116,6 +121,7 @@ def build_export(inputs: dict, base_date: pd.Timestamp, cfg: dict) -> dict[str, 
     for name, r in rows.items():
         tables[f"rows_{name}"] = r.assign(node=node_of.reindex(r.acct_id).to_numpy())
         tables[f"features_{name}"] = row_features(inputs, r, cfg)
+        tables[f"features_lag{LAG_DAYS}_{name}"] = row_features(inputs, r, cfg, lag=LAG_DAYS)
     for t in tables.values():
         check_feature_columns([c for c in t.columns if c != "acct_id"])
     return tables

@@ -1,0 +1,8 @@
+# Role transition with the research plan's temporal difference (section 14): q also reads r(t) - r(t - 7), the
+# change of the role vector against the same account one week earlier, computed by the same role encoder from the
+# export's features_lag7 file. Same 50-epoch cap as tgn_transition_e50; the choice between the transition
+# variants is made on mean validation PR-AUC.
+# Run: python -m earlymule.models.tgn --data <export folder> --config tgn_transition_t7.yaml [--seed N]
+base: tgn_transition_e50.yaml
+run_name: tgn_transition_t7
+transition_lag_days: 7

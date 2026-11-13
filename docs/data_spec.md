@@ -109,11 +109,31 @@ Features at day t use only transfers dated on or before t. Illicit transfers are
 | Item | Current choice |
 |---|---|
 | Split | By day: train 0–431, validation 432–539, test 540–719 (60/15/25%) |
-| Feature windows | 1, 7 and 30 days, end of day t (advisor, 2026-11-02) |
+| Feature windows | 1, 7 and 30 days, end of day t (advisor, 2026-11-02); the feature families are listed below |
 | Scored population | Regular accounts: at least 20 transfers up to day t. Results on all accounts are reported alongside |
 | Weekly scoring | Every 7 days; positive if the mule's onset falls in the last 7 days; earlier mules are left out |
 | Daily scoring (early detection) | Every day; positive while the mule is active (onset to completion); after completion a mule has no label but stays in the ranking; top K new alerts per day with a 30-day cooldown |
 | Uncertainty | 3 seeds; 95% intervals by resampling whole cases |
+
+**Point-in-time features** (`src/earlymule/features/point_in_time.py`; every value uses transfers dated on or before day t only; "window" = (t − w, t] for w in 1, 7, 30). Families of the research plan (section 12.3) and their columns:
+
+| Family | Columns per window | Definition |
+|---|---|---|
+| Activity | `n_out`, `n_in`, `amt_out`, `amt_in` | Transfers and amounts sent and received |
+| Fan-in, fan-out | `peers_in`, `peers_out` | Distinct senders and receivers |
+| Pass-through ratio | `out_in_ratio` | Amount sent / amount received (no value without receipts) |
+| Flow imbalance | `imbalance` | (sent − received) / (sent + received), in [−1, 1] |
+| Counterparty churn | `new_peers_out`, `new_peers_in`, `new_share_out`, `new_share_in` | Partners whose first transfer with the account falls inside the window, and their share |
+| Burstiness (7 and 30 days) | `burst` | (σ − μ) / (σ + μ) of the day gaps between the account's consecutive transfers; at least two gaps |
+| Rapid-forward ratio | `fwd_0d`, `fwd_1d`, `fwd_3d` (1-day window: `fwd_0d` only) | Share of the money received in the window that was sent on within the same day, the next day or the next 3 days, each receipt covered at most once, observed up to day t |
+| Dwell time | `dwell_med`, `dwell_min` | Median and minimum days from a receipt day to the next day with any sending (0 = same day); no value until a sending day is observed |
+| Two-hop flow intensity | `up_amt_in`, `down_amt_out` | Window inflow of the accounts that paid the account; window outflow of the accounts it paid |
+| Counterparty entropy | `ent_in`, `ent_out` | Entropy of the amount split across senders and across receivers |
+| Across windows | `<m>_7d_over_30d` for counts, peers and amounts | 7-day share of the 30-day value |
+| History | `days_since_last_tx`, `days_since_last_out`, `days_since_last_in` | Recency of each direction; `n_tx_hist` and `days_since_first_tx` are computed but excluded from the models (`configs/lightgbm.yaml`) |
+| Static | `initial_deposit` | Opening balance |
+
+Days are the finest unit AMLSim records, so the plan's sub-day dwell and forwarding horizons become same-day, 1-day and 3-day horizons. The burstiness, rapid-forward, dwell, two-hop and entropy families were added on 2026-11-13 (72 model features; the runs logged before that commit used the 42 features of the other families).
 
 **Difficulty so far** (LightGBM, test, mean of 3 seeds, `experiments/experiments.csv`, commit `c62fa61`; early stopping on validation PR-AUC only, patience 1,000 rounds):
 - weekly, regular accounts: PR-AUC 0.78 ± 0.02 (random ranking: 0.0006), Recall@100 0.97;

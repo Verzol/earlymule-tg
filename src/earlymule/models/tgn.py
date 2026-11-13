@@ -100,25 +100,27 @@ class NeighborBuffer(LastNeighborLoader):
 class FeatureScaler:
     """log1p, then standardise with train-row statistics; a missing value becomes 0 plus a missing flag.
 
-    The features are counts, amounts, ratios and day gaps: non-negative with long tails, hence log1p.
-    NaN means "nothing to divide by" or "never happened", which the flag keeps apart from an average value.
+    Most features are counts, amounts, ratios and day gaps: non-negative with long tails, hence log1p. Signed
+    features (flow imbalance, burstiness, in [−1, 1]) are standardised as they are; which columns are signed is
+    decided on the train rows. NaN means "nothing to divide by" or "never happened", which the flag keeps apart
+    from an average value.
     """
 
     def __init__(self, train: pd.DataFrame):
-        x = self._log(train)
         self.columns = list(train.columns)
+        self.signed = (np.nanmin(train.to_numpy(dtype=np.float32), axis=0) < 0)
+        x = self._log(train)
         self.mean, self.std = np.nanmean(x, axis=0), np.nanstd(x, axis=0)
         self.mean, self.std = np.nan_to_num(self.mean), np.where(self.std > 0, self.std, 1.0)
         # Flags only for columns ever missing on train; the others would be constant
         self.flagged = np.isnan(x).any(axis=0)
 
-    @staticmethod
-    def _log(frame: pd.DataFrame) -> np.ndarray:
-        """Values on a log scale; negative values would break log1p, so they are rejected."""
+    def _log(self, frame: pd.DataFrame) -> np.ndarray:
+        """Unsigned columns on a log scale, signed columns as they are; a negative unsigned value is rejected."""
         x = frame.to_numpy(dtype=np.float32)
-        if (x < 0).any():
+        if (x[:, ~self.signed] < 0).any():
             raise ValueError("account features must be non-negative")
-        return np.log1p(x)
+        return np.where(self.signed, x, np.log1p(np.where(self.signed, 0, x)))
 
     @property
     def width(self) -> int:

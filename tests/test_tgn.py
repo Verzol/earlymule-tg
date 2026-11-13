@@ -92,18 +92,21 @@ def test_train_epoch_gives_finite_loss():
 
 
 def test_feature_scaler_uses_train_statistics():
-    """Train rows set the scale; a missing value becomes 0 with a flag; negative values are rejected."""
-    train = pd.DataFrame({"a": [0.0, 1.0, 3.0], "b": [1.0, np.nan, 1.0]})
+    """Train rows set the scale; a missing value becomes 0 with a flag; a signed column skips log1p; a negative
+    value in an unsigned column is rejected."""
+    train = pd.DataFrame({"a": [0.0, 1.0, 3.0], "b": [1.0, np.nan, 1.0], "s": [-1.0, 0.0, 1.0]})
     sc = FeatureScaler(train)
     mean = sc.mean.copy()
-    assert sc.width == 3  # a, b and the missing flag of b
-    z = sc.transform(pd.DataFrame({"a": [100.0, 0.0], "b": [np.nan, 1.0]}))
-    assert z[0, 1] == 0 and z[0, 2] == 1 and z[1, 2] == 0
+    assert sc.width == 4  # a, b, s and the missing flag of b
+    assert list(sc.signed) == [False, False, True]
+    z = sc.transform(pd.DataFrame({"a": [100.0, 0.0], "b": [np.nan, 1.0], "s": [-1.0, 1.0]}))
+    assert z[0, 1] == 0 and z[0, 3] == 1 and z[1, 3] == 0
     np.testing.assert_allclose(sc.transform(train)[:, 0].mean(), 0, atol=1e-6)
+    np.testing.assert_allclose(z[:, 2], [-np.sqrt(1.5), np.sqrt(1.5)], atol=1e-6)  # (−1 − 0) / std([−1, 0, 1])
     # Transforming other rows never refits the scale
     np.testing.assert_array_equal(sc.mean, mean)
     with pytest.raises(ValueError):
-        sc.transform(pd.DataFrame({"a": [-1.0], "b": [1.0]}))
+        sc.transform(pd.DataFrame({"a": [-1.0], "b": [1.0], "s": [0.0]}))
 
 
 def test_row_features_reach_the_score(tmp_path):

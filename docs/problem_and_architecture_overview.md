@@ -149,7 +149,7 @@ Both branches use transfers observed by the scoring day:
 |---|---|---|
 | Time-aware transaction graph | Who transacts with whom, amounts and the evolution of these relationships | Transfer event stream with each account's 10 most recent partners, used by the TGN; 30-day snapshot graph of each day, built on the fly for the static GraphSAGE baseline |
 | Temporal graph encoder (TGN) | Account representations updated from observed transaction events | Minimal TGN implemented: memory per account, attention over recent partners, link and account losses |
-| 1-, 7- and 30-day statistics | Counts, amounts, counterparties, new counterparties and changes across windows | Many aggregates implemented; the plan's complete feature list is not |
+| 1-, 7- and 30-day statistics | Counts, amounts, counterparties, new counterparties and changes across windows | All families of the plan implemented at day resolution (`docs/data_spec.md` section 7) |
 | Behavioral role encoder | A learned representation of receiving, collecting, relaying or distributing | Not implemented |
 | Role-transition encoder | Differences from earlier states or between time scales | Not implemented |
 | Fusion and risk scoring | Combine graph relationships, current role and role change | Graph embedding and window statistics concatenated in one account head; role inputs not implemented |

@@ -203,7 +203,7 @@ kaggle datasets version -p data/processed/kaggle/80K-earlymule-mule -r skip -m "
 
 ### 4.3. Notebook environment
 
-Notebook `verzol/earlymule-tgn-spike` (private), pushed with `kaggle kernels push -p notebooks/kaggle/tgn_spike`; outputs with `kaggle kernels output verzol/earlymule-tgn-spike -p <folder>`. It clones the repository, installs it with `pip install -e . --no-deps` and `pip install torch_geometric`, then runs `python -m earlymule.models.tgn_smoke`.
+Notebook `verzol/earlymule-tgn-spike` (private), pushed with `kaggle kernels push -p notebooks/kaggle/tgn_spike`; outputs with `kaggle kernels output verzol/earlymule-tgn-spike -p <folder>`. It clones the repository, installs it with `pip install -e . --no-deps` and `pip install torch_geometric`, then runs `python -m MODULE --config CONFIG` for every (learning rate, seed) pair of its first cell: `earlymule.models.tgn` with `tgn.yaml` or `tgn_features.yaml`, or `earlymule.models.graphsage` with `graphsage.yaml` (the daily static-graph baseline, section 4.5). Version 1 ran the environment check `python -m earlymule.models.tgn_smoke`.
 
 | Component | Version (run of 2026-11-10, code `2b48ca6`) |
 |---|---|
@@ -242,3 +242,9 @@ Same smoke test, one TGN epoch on the train-period transfers of `80K-earlymule-m
 | Laptop, RTX 4050 6 GB | 382 | 2,816 | 217 MiB |
 
 The laptop is about 1.3 times slower and uses 1.9 GB of RAM for this run.
+
+### 4.5. Daily GraphSAGE (static-graph baseline)
+
+`python -m earlymule.models.graphsage --data <export folder> [--config graphsage.yaml] [--seed N]` trains the static-graph row of the ablation table on the same export. The graph of day t is built on the GPU from the transfers of days (t − 30, t] (one directed edge per sender–receiver pair, never stored); the node inputs are the deposit and the window's in/out counts and amounts; two SAGEConv layers run over in-edges and out-edges separately; the account head reads the embedding, the deposit and the row's LightGBM features, as the TGN with features does. Same rows, negative sampling, early stopping and output files as the TGN.
+
+Smoke run on `10K-earlymule-mule`, laptop RTX 4050, 3 epochs (2026-11-13): 3.2 s of training and 0.5 s of validation per epoch, peak 246 MiB, 58,601 parameters, validation PR-AUC 0.288 at epoch 1. Days are independent, so the run is far shorter than the TGN's sequential pass.

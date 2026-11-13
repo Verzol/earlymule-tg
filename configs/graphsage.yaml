@@ -1,0 +1,13 @@
+# Daily GraphSAGE on the 30-day transfer graph; the account head also reads the daily LightGBM features, as the
+# TGN with features does (the plan's static-graph ablation row keeps the tabular features).
+# Run: python -m earlymule.models.graphsage --data <export folder> [--seed N]
+run_name: graphsage
+seed: 0
+window: 30                 # days of transfers in the graph of day t: (t - 30, t], the longest feature window
+dim: 100                   # embedding size, as the TGN
+layers: 2
+lr: 0.001
+train_negative_rate: 0.01  # share of non-mule train rows kept per day, as the TGN and the daily LightGBM run
+max_epochs: 30
+patience: 6                # as the TGN (validation PR-AUC swings between epochs)
+account_features: true

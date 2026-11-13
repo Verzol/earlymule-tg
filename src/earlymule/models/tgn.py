@@ -50,6 +50,8 @@ class Stream:
         self.dst = torch.tensor(e.dst.to_numpy(), dtype=torch.long, device=device)
         self.t = torch.tensor(e.day.to_numpy(), dtype=torch.long, device=device)
         self.msg = torch.as_tensor(np.c_[amount, e.dow / 6.0], dtype=torch.float, device=device)
+        # Unscaled log1p amount, for models that sum amounts per account (daily GraphSAGE)
+        self.log_amount = torch.as_tensor(e.log_amount.to_numpy(), dtype=torch.float, device=device)
         self.last_day = int(e.day.max()) if len(e) else -1
         # Row range of each day: day d is rows start[d]:start[d + 1]
         self.start = np.searchsorted(e.day.to_numpy(), np.arange(self.last_day + 2))

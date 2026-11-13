@@ -1,0 +1,7 @@
+# STA-GT-inspired daily account scorer on the 30-day transfer graph; account head with the LightGBM features.
+# Run: python -m earlymule.models.stagt --data <export folder> [--seed N]
+base: graphsage.yaml       # window, dim, layers, lr, negative rate, early stopping as the other daily graph models
+run_name: stagt
+tokens: 32                 # most recent partners in each account's Transformer sequence
+heads: 4                   # attention heads of the Transformer layer (dim 100 -> 25 per head)
+shared_cap: 20             # a partner with more payers (or payees) than this links none of them

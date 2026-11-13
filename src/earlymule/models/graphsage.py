@@ -37,12 +37,15 @@ class WindowGraph:
     """Edges and per-account statistics of the transfers in (t - window, t].
 
     Attributes:
+        t: the day.
         edge_index: [2, E] sender -> receiver, one edge per distinct pair.
+        edge_day: [E] most recent day the pair transferred (for time encodings: t - edge_day).
         stats: [N, 4] log1p of in count, out count, in amount, out amount over the window (unscaled).
     """
 
     def __init__(self, stream: Stream, t: int, window: int, num_nodes: int):
         # 1. Rows of the window: day t - window + 1 .. t (empty before the first day)
+        self.t = t
         first = max(0, t - window + 1)
         rows = slice(int(stream.start[first]), int(stream.start[min(t, stream.last_day) + 1])) if t >= 0 else slice(0, 0)
         src, dst = stream.src[rows], stream.dst[rows]
@@ -52,9 +55,13 @@ class WindowGraph:
         cols = [torch.bincount(dst, ones, num_nodes), torch.bincount(src, ones, num_nodes),
                 torch.bincount(dst, amount, num_nodes), torch.bincount(src, amount, num_nodes)]
         self.stats = torch.log1p(torch.stack(cols, dim=1))
-        # 3. One edge per pair; amounts enter through the node statistics, so the edges carry no weight
-        self.edge_index = coalesce(torch.stack([src, dst]), num_nodes=num_nodes) if src.numel() else \
-            torch.empty(2, 0, dtype=torch.long, device=src.device)
+        # 3. One edge per pair with its latest day; amounts enter through the node statistics, so the edges carry
+        #    no weight
+        if src.numel():
+            self.edge_index, self.edge_day = coalesce(torch.stack([src, dst]), stream.t[rows], num_nodes, reduce="max")
+        else:
+            self.edge_index = torch.empty(2, 0, dtype=torch.long, device=src.device)
+            self.edge_day = torch.empty(0, dtype=torch.long, device=src.device)
 
 
 class StatScaler:
@@ -99,11 +106,13 @@ class SAGEAccount(torch.nn.Module):
         parts = [z[nodes], self.deposit[nodes].unsqueeze(-1)]
         return self.head(torch.cat(parts if x is None else [*parts, x], dim=-1)).squeeze(-1)
 
+    def score_day(self, nodes: torch.Tensor, g: WindowGraph, stats: torch.Tensor, x: torch.Tensor | None) -> torch.Tensor:
+        """Mule logit of the given accounts at the end of day g.t; stats = the scaled window statistics.
 
-def day_embedding(model: SAGEAccount, stream: Stream, scaler: StatScaler, t: int, window: int) -> torch.Tensor:
-    """Embeddings of all accounts at the end of day t."""
-    g = WindowGraph(stream, t, window, model.deposit.numel())
-    return model.embed(scaler(g.stats), g.edge_index)
+        The interface every daily graph model shares (see earlymule.models.stagt): the training and scoring loops
+        below only call this.
+        """
+        return self.score(nodes, self.embed(stats, g.edge_index), x)
 
 
 def train_epoch(model, stream: Stream, scaler: StatScaler, train_rows: dict, cfg: dict, opt, rng) -> float:
@@ -116,10 +125,10 @@ def train_epoch(model, stream: Stream, scaler: StatScaler, train_rows: dict, cfg
         keep = (label == 1) | (rng.random(len(label)) < cfg["train_negative_rate"])
         if not keep.any():
             continue
-        z = day_embedding(model, stream, scaler, d, cfg["window"])
+        g = WindowGraph(stream, d, cfg["window"], model.deposit.numel())
         y = torch.as_tensor(label[keep], dtype=torch.float, device=nodes.device)
         k = torch.as_tensor(keep, device=nodes.device)
-        loss = loss_fn(model.score(nodes[k], z, None if x is None else x[k]), y)
+        loss = loss_fn(model.score_day(nodes[k], g, scaler(g.stats), None if x is None else x[k]), y)
         opt.zero_grad()
         loss.backward()
         opt.step()
@@ -134,17 +143,29 @@ def score_days(model, stream: Stream, scaler: StatScaler, rows: dict, window: in
     out = []
     for d in sorted(rows):
         nodes, label, acct, x = rows[d]
-        z = day_embedding(model, stream, scaler, d, window)
-        frame = pd.DataFrame({"acct_id": acct, "snapshot": d, "score": model.score(nodes, z, x).cpu().numpy()})
+        g = WindowGraph(stream, d, window, model.deposit.numel())
+        frame = pd.DataFrame({"acct_id": acct, "snapshot": d,
+                              "score": model.score_day(nodes, g, scaler(g.stats), x).cpu().numpy()})
         out.append(frame if label is None else frame.assign(label=label))
     return pd.concat(out, ignore_index=True) if out else pd.DataFrame()
 
 
-def main() -> None:
-    """Train with early stopping on validation PR-AUC, then write validation and test scores."""
+def build_sage(cfg: dict, deposit: torch.Tensor, n_features: int, device) -> SAGEAccount:
+    """The GraphSAGE model of a config."""
+    return SAGEAccount(deposit, cfg["dim"], cfg["layers"], device, n_features)
+
+
+def main(build_model=build_sage, default_config: str = "graphsage.yaml") -> None:
+    """Train with early stopping on validation PR-AUC, then write validation and test scores.
+
+    Args:
+        build_model: (cfg, deposit, n_features, device) -> model with a score_day method; other daily graph
+            models reuse this loop by passing their own builder.
+        default_config: config file used when --config is not given.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--data", required=True, help="export folder (manifest.json, events, nodes, rows_*, features_*)")
-    parser.add_argument("--config", default="graphsage.yaml")
+    parser.add_argument("--config", default=default_config)
     parser.add_argument("--seed", type=int)
     parser.add_argument("--max-epochs", type=int)
     parser.add_argument("--lr", type=float, help="learning rate for a sweep; the run is logged as <run_name>_lr<X>")
@@ -176,7 +197,7 @@ def main() -> None:
     stats = StatScaler(stream, range(splits["train"][0], splits["train"][1] + 1), cfg["window"], len(nodes))
 
     # 2. Train; keep the parameters of the epoch with the best validation PR-AUC
-    model = SAGEAccount(deposit, cfg["dim"], cfg["layers"], device, scaler.width if scaler else 0)
+    model = build_model(cfg, deposit, scaler.width if scaler else 0, device)
     opt = torch.optim.Adam(model.parameters(), lr=cfg["lr"])
     best, best_epoch, best_state, epochs = -1.0, 0, None, []
     for epoch in range(1, cfg["max_epochs"] + 1):

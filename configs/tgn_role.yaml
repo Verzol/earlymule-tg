@@ -1,0 +1,8 @@
+# TGN with features plus the multi-scale role encoder (research plan section 13): the 1-, 7- and 30-day feature
+# groups each pass through their own MLP, attention over the three windows gives the role vector, and the account
+# head reads that vector instead of the raw window features. The bar to beat is tgn_features on the same export.
+# Run: python -m earlymule.models.tgn --data <export folder> --config tgn_role.yaml [--seed N]
+base: tgn_features.yaml
+run_name: tgn_role
+role_encoder: true
+role_dim: 32               # size of each window's role vector and of the fused role state

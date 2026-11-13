@@ -127,6 +127,11 @@ class FeatureScaler:
         """Number of model inputs: one per feature plus one per missing flag."""
         return len(self.columns) + int(self.flagged.sum())
 
+    @property
+    def input_names(self) -> list[str]:
+        """Name of each model input, in transform order: the columns, then `<column>__missing` per flagged column."""
+        return self.columns + [f"{c}__missing" for c, f in zip(self.columns, self.flagged) if f]
+
     def transform(self, frame: pd.DataFrame) -> np.ndarray:
         """Model inputs of each row, float32."""
         x = self._log(frame[self.columns])
@@ -135,24 +140,72 @@ class FeatureScaler:
         return np.c_[z, missing[:, self.flagged]].astype(np.float32)
 
 
+WINDOWS = ("1d", "7d", "30d")
+
+
+def role_groups(input_names: list[str]) -> tuple[dict[str, list[int]], list[int]]:
+    """Split the model inputs into one group per feature window and the rest.
+
+    A column belongs to the window named by its suffix (`_1d`, `_7d`, `_30d`); a missing flag follows its column.
+    Cross-window ratios (`_7d_over_30d`), history gaps and anything else go to the rest.
+    Returns:
+        ({window: input indices}, rest indices).
+    """
+    groups, rest = {w: [] for w in WINDOWS}, []
+    for i, name in enumerate(input_names):
+        base = name.removesuffix("__missing")
+        window = next((w for w in WINDOWS if base.endswith(f"_{w}") and "7d_over_30d" not in base), None)
+        (groups[window] if window else rest).append(i)
+    return groups, rest
+
+
+class RoleEncoder(torch.nn.Module):
+    """Multi-scale role state of the research plan (section 13): one MLP per feature window, attention over the
+    three windows. Returns the fused role vector, the attention weights and the inputs outside the windows."""
+
+    def __init__(self, groups: dict[str, list[int]], rest: list[int], dim: int):
+        super().__init__()
+        self.windows = list(groups)
+        for w, idx in groups.items():
+            self.register_buffer(f"idx_{w}", torch.tensor(idx, dtype=torch.long))
+        self.register_buffer("idx_rest", torch.tensor(rest, dtype=torch.long))
+        self.mlps = torch.nn.ModuleList([torch.nn.Sequential(Linear(len(groups[w]), dim), torch.nn.ReLU(), Linear(dim, dim),
+                                                             torch.nn.ReLU()) for w in self.windows])
+        self.att = Linear(dim, dim)
+        self.q = torch.nn.Parameter(torch.randn(dim) / dim ** 0.5)
+        self.dim, self.n_rest = dim, len(rest)
+        self.last = None  # (r, alpha) of the latest call, read by score_pass for the collapse check
+
+    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """x [B, n_inputs] -> (r [B, dim], alpha [B, n_windows], rest [B, n_rest])."""
+        per_window = torch.stack([mlp(x[:, getattr(self, f"idx_{w}")]) for w, mlp in zip(self.windows, self.mlps)], dim=1)
+        alpha = torch.softmax(torch.tanh(self.att(per_window)) @ self.q, dim=1)
+        r = (alpha.unsqueeze(-1) * per_window).sum(1)
+        self.last = (r.detach(), alpha.detach())
+        return r, alpha, x[:, self.idx_rest]
+
+
 class TGNAccount(torch.nn.Module):
     """TGN memory and attention embedding with a link head and an account head (mule logit).
 
     n_features > 0 adds that many row features to the account head input. use_graph=False drops the memory,
-    attention and link head: the account head then reads only the deposit and the row features.
+    attention and link head: the account head then reads only the deposit and the row features. With
+    role (a RoleEncoder), the head reads the fused role vector and the non-window inputs instead of the raw
+    window features.
     """
 
     def __init__(self, num_nodes: int, deposit: torch.Tensor, dim: int, neighbors: int, device, n_features: int = 0,
-                 use_graph: bool = True):
+                 use_graph: bool = True, role: RoleEncoder | None = None):
         super().__init__()
         self.use_graph = use_graph
+        self.role = role
         if use_graph:
             msg_dim = 2
             self.memory = TGNMemory(num_nodes, msg_dim, dim, dim, message_module=IdentityMessage(msg_dim, dim, dim),
                                     aggregator_module=MeanAggregator())
             self.conv = TransformerConv(dim, dim // 2, heads=2, dropout=0.1, edge_dim=msg_dim + dim)
             self.link_src, self.link_dst, self.link_out = Linear(dim, dim), Linear(dim, dim), Linear(dim, 1)
-        head_in = (dim if use_graph else 0) + 1 + n_features
+        head_in = (dim if use_graph else 0) + 1 + (role.dim + role.n_rest if role else n_features)
         self.head = torch.nn.Sequential(Linear(head_in, dim), torch.nn.ReLU(), Linear(dim, 1))
         self.register_buffer("deposit", deposit)
         self.to(device)
@@ -198,7 +251,13 @@ class TGNAccount(torch.nn.Module):
         parts = [self.deposit[nodes].unsqueeze(-1)]
         if self.use_graph:
             parts.insert(0, self.embed(nodes, stream))
-        return self.head(torch.cat(parts if x is None else [*parts, x], dim=-1)).squeeze(-1)
+        if x is not None:
+            if self.role is not None:
+                r, _, rest = self.role(x)
+                parts += [r, rest]
+            else:
+                parts.append(x)
+        return self.head(torch.cat(parts, dim=-1)).squeeze(-1)
 
 
 def sample_negatives(seen: torch.Tensor, n: int, generator: torch.Generator) -> torch.Tensor:
@@ -278,6 +337,7 @@ def score_pass(model, stream: Stream, score_rows: dict[str, dict], last_day: int
     model.eval()
     model.reset()
     out = {name: [] for name in score_rows}
+    role_r, role_alpha = [], []
     for d in range(last_day + 1):
         model.observe(stream.day(d), stream)
         for name, rows in score_rows.items():
@@ -286,6 +346,15 @@ def score_pass(model, stream: Stream, score_rows: dict[str, dict], last_day: int
                 frame = pd.DataFrame({"acct_id": acct, "snapshot": d,
                                       "score": model.score(nodes, stream, x).cpu().numpy()})
                 out[name].append(frame if label is None else frame.assign(label=label))
+                # Collapse check of the role branch on the validation rows: spread of r and the window weights
+                if name == "val" and getattr(model, "role", None) is not None:
+                    role_r.append(model.role.last[0])
+                    role_alpha.append(model.role.last[1])
+    if role_r:
+        r, alpha = torch.cat(role_r), torch.cat(role_alpha)
+        model.role_log = {"r_std_mean": round(r.std(0).mean().item(), 4), "r_std_min": round(r.std(0).min().item(), 4),
+                          "alpha_mean": [round(v, 4) for v in alpha.mean(0).tolist()],
+                          "alpha_std": [round(v, 4) for v in alpha.std(0).tolist()]}
     return {name: pd.concat(f, ignore_index=True) if f else pd.DataFrame() for name, f in out.items()}
 
 
@@ -332,8 +401,13 @@ def main() -> None:
     val_rows = load_rows(data, "val", scaler, device)
 
     # 2. Train; keep the parameters of the epoch with the best validation PR-AUC
+    # Role encoder: the window features enter through one MLP per window and attention over the windows
+    role = None
+    if cfg.get("role_encoder"):
+        groups, rest = role_groups(scaler.input_names)
+        role = RoleEncoder(groups, rest, cfg["role_dim"])
     model = TGNAccount(len(nodes), deposit, cfg["dim"], cfg["neighbors"], device, scaler.width if scaler else 0,
-                       cfg.get("use_graph", True))
+                       cfg.get("use_graph", True), role)
     opt = torch.optim.Adam(model.parameters(), lr=cfg["lr"])
     best, best_epoch, best_state, epochs = -1.0, 0, None, []
     for epoch in range(1, cfg["max_epochs"] + 1):
@@ -368,7 +442,8 @@ def main() -> None:
     meta = {"run_name": run_name, "dataset": dataset, "export_commit": manifest["commit"], "commit": commit,
             "dirty": dirty, "seed": cfg["seed"], "config": cfg, "device": torch.cuda.get_device_name(0)
             if device.type == "cuda" else "cpu", "params": sum(p.numel() for p in model.parameters()),
-            "best_epoch": best_epoch, "best_val_pr_auc": round(best, 4), "epochs": epochs, "seconds": round(time.time() - start, 1)}
+            "best_epoch": best_epoch, "best_val_pr_auc": round(best, 4), "epochs": epochs, "seconds": round(time.time() - start, 1),
+            "role": getattr(model, "role_log", None)}
     (out / "run_meta.json").write_text(json.dumps(meta, indent=1))
     print(json.dumps({k: meta[k] for k in ["run_name", "best_val_pr_auc", "seconds"]} | {"out": str(out)}))
 

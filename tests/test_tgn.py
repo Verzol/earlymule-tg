@@ -161,3 +161,47 @@ def test_without_graph_scores_ignore_transfers():
                        {"link_weight": 1.0, "train_negative_rate": 1.0}, opt, np.random.default_rng(0),
                        torch.Generator().manual_seed(0))
     assert np.isfinite(loss) and loss > 0
+
+
+def test_role_groups_split_inputs_by_window():
+    """Every input lands in exactly one window group or the rest; flags follow their column."""
+    from earlymule.models.tgn import role_groups
+    names = ["n_in_1d", "fwd_0d_7d", "burst_30d", "n_out_7d_over_30d", "days_since_last_tx", "fwd_0d_7d__missing"]
+    groups, rest = role_groups(names)
+    assert groups == {"1d": [0], "7d": [1, 5], "30d": [2]} and rest == [3, 4]
+    assert sorted(sum(groups.values(), rest)) == list(range(len(names)))
+
+
+def test_role_vector_depends_only_on_its_window():
+    """Changing a 7-day input changes r through the 7-day MLP only; the rest passes through untouched."""
+    from earlymule.models.tgn import RoleEncoder
+    torch.manual_seed(0)
+    enc = RoleEncoder({"1d": [0], "7d": [1], "30d": [2]}, [3], dim=4).eval()
+    x = torch.tensor([[0.5, 1.0, -0.5, 9.0]])
+    r, alpha, rest = enc(x)
+    assert r.shape == (1, 4) and alpha.shape == (1, 3) and rest.tolist() == [[9.0]]
+    assert torch.allclose(alpha.sum(1), torch.ones(1))
+    per_window = [enc.mlps[i](x[:, [i]]) for i in range(3)]
+    x2 = x.clone()
+    x2[0, 1] = 5.0
+    per_window2 = [enc.mlps[i](x2[:, [i]]) for i in range(3)]
+    assert torch.allclose(per_window[0], per_window2[0]) and torch.allclose(per_window[2], per_window2[2])
+    assert not torch.allclose(per_window[1], per_window2[1])
+
+
+def test_train_epoch_with_role_encoder_gives_finite_loss():
+    """One training pass with the role encoder in the account head runs, returns a finite loss and logs r."""
+    from earlymule.models.tgn import RoleEncoder
+    torch.manual_seed(0)
+    role = RoleEncoder({"1d": [0], "7d": [1], "30d": [2]}, [3], dim=4)
+    m = TGNAccount(NODES, torch.zeros(NODES), dim=8, neighbors=3, device="cpu", n_features=4, role=role)
+    rows = pd.DataFrame({"acct_id": [1, 2, 3] * 4, "snapshot": np.repeat([2, 3, 4, 5], 3), "node": [1, 2, 3] * 4,
+                         "label": [1.0, 0.0, 0.0] * 4})
+    x = np.random.default_rng(0).normal(size=(12, 4)).astype(np.float32)
+    opt = torch.optim.Adam(m.parameters(), lr=1e-3)
+    loss = train_epoch(m, Stream(events(), 8, "cpu"), rows_by_day(rows, "cpu", x), 8,
+                       {"link_weight": 1.0, "train_negative_rate": 1.0}, opt, np.random.default_rng(0),
+                       torch.Generator().manual_seed(0))
+    assert np.isfinite(loss) and loss > 0
+    score_pass(m, Stream(events(), 8, "cpu"), {"val": rows_by_day(rows, "cpu", x)}, 5)
+    assert m.role_log["r_std_mean"] >= 0 and len(m.role_log["alpha_mean"]) == 3

@@ -1,0 +1,7 @@
+# Full EarlyMule-TG (research plan section 16): TGN embedding, multi-scale role state and role transition joined by
+# a gate, z = g * h' + (1 - g) * u([r ; q]), before the account head. The bar to beat is tgn_transition and
+# tgn_features on the same export.
+# Run: python -m earlymule.models.tgn --data <export folder> --config earlymule_tg.yaml [--seed N]
+base: tgn_transition.yaml
+run_name: earlymule_tg
+gated_fusion: true

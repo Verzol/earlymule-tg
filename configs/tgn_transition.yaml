@@ -1,0 +1,6 @@
+# Role-transition step of the ablation (research plan section 14): the TGN with the role encoder, whose account
+# head also reads q = MLP([r ; r1 - r7 ; r7 - r30]). The bar to beat is tgn_role on the same export.
+# Run: python -m earlymule.models.tgn --data <export folder> --config tgn_transition.yaml [--seed N]
+base: tgn_role.yaml
+run_name: tgn_transition
+role_transition: true

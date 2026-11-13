@@ -205,3 +205,57 @@ def test_train_epoch_with_role_encoder_gives_finite_loss():
     assert np.isfinite(loss) and loss > 0
     score_pass(m, Stream(events(), 8, "cpu"), {"val": rows_by_day(rows, "cpu", x)}, 5)
     assert m.role_log["r_std_mean"] >= 0 and len(m.role_log["alpha_mean"]) == 3
+
+
+def test_transition_reads_scale_differences():
+    """q changes when the 1-day role moves away from the 7-day role, even if r is held fixed."""
+    from earlymule.models.tgn import TransitionEncoder
+    torch.manual_seed(0)
+    enc = TransitionEncoder(dim=4).eval()
+    r = torch.zeros(1, 4)
+    same = torch.ones(1, 3, 4)
+    switched = same.clone()
+    switched[0, 0] = 3.0
+    assert not torch.allclose(enc(r, same), enc(r, switched))
+
+
+def test_full_model_steps_run_and_log_the_gate():
+    """Role, transition and gated fusion stack; a missing step is refused; the gate is logged in [0, 1]."""
+    from earlymule.models.tgn import GatedFusion, RoleEncoder, TransitionEncoder
+    rows = pd.DataFrame({"acct_id": [1, 2, 3] * 4, "snapshot": np.repeat([2, 3, 4, 5], 3), "node": [1, 2, 3] * 4,
+                         "label": [1.0, 0.0, 0.0] * 4})
+    x = np.random.default_rng(0).normal(size=(12, 4)).astype(np.float32)
+    groups = {"1d": [0], "7d": [1], "30d": [2]}
+    with pytest.raises(ValueError):
+        TGNAccount(NODES, torch.zeros(NODES), dim=8, neighbors=3, device="cpu", n_features=4,
+                   transition=TransitionEncoder(4))
+    for with_fusion in (False, True):
+        torch.manual_seed(0)
+        m = TGNAccount(NODES, torch.zeros(NODES), dim=8, neighbors=3, device="cpu", n_features=4,
+                       role=RoleEncoder(groups, [3], dim=4), transition=TransitionEncoder(4),
+                       fusion=GatedFusion(8, 4, 8) if with_fusion else None)
+        opt = torch.optim.Adam(m.parameters(), lr=1e-3)
+        loss = train_epoch(m, Stream(events(), 8, "cpu"), rows_by_day(rows, "cpu", x), 8,
+                           {"link_weight": 1.0, "train_negative_rate": 1.0}, opt, np.random.default_rng(0),
+                           torch.Generator().manual_seed(0))
+        assert np.isfinite(loss) and loss > 0
+        score_pass(m, Stream(events(), 8, "cpu"), {"val": rows_by_day(rows, "cpu", x)}, 5)
+        assert ("gate_mean" in m.role_log) == with_fusion
+        if with_fusion:
+            assert 0 <= m.role_log["gate_mean"] <= 1
+
+
+def test_full_model_scores_ignore_transfers_after_the_day():
+    """The full model, like the TGN, gives the same day-5 scores when later transfers change."""
+    from earlymule.models.tgn import GatedFusion, RoleEncoder, TransitionEncoder
+    torch.manual_seed(0)
+    m = TGNAccount(NODES, torch.zeros(NODES), dim=8, neighbors=3, device="cpu", n_features=4,
+                   role=RoleEncoder({"1d": [0], "7d": [1], "30d": [2]}, [3], dim=4), transition=TransitionEncoder(4),
+                   fusion=GatedFusion(8, 4, 8))
+    rows = pd.DataFrame([(a, d, a) for d in range(6) for a in range(NODES)], columns=["acct_id", "snapshot", "node"])
+    x = np.random.default_rng(0).normal(size=(len(rows), 4)).astype(np.float32)
+    e = events()
+    full = score_pass(m, Stream(e, 3, "cpu"), {"s": rows_by_day(rows, "cpu", x)}, 5)["s"]
+    changed = e.assign(log_amount=np.where(e.day.gt(5), 99.0, e.log_amount), dst=np.where(e.day.gt(5), 0, e.dst))
+    moved = score_pass(m, Stream(changed, 3, "cpu"), {"s": rows_by_day(rows, "cpu", x)}, 5)["s"]
+    np.testing.assert_allclose(full.score, moved.score, atol=1e-6)

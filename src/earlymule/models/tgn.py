@@ -177,35 +177,85 @@ class RoleEncoder(torch.nn.Module):
         self.last = None  # (r, alpha) of the latest call, read by score_pass for the collapse check
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        """x [B, n_inputs] -> (r [B, dim], alpha [B, n_windows], rest [B, n_rest])."""
+        """x [B, n_inputs] -> (r [B, dim], alpha [B, n_windows], rest [B, n_rest]); the per-window role vectors
+        [B, n_windows, dim] of the call stay in self.per_window for the transition encoder."""
         per_window = torch.stack([mlp(x[:, getattr(self, f"idx_{w}")]) for w, mlp in zip(self.windows, self.mlps)], dim=1)
         alpha = torch.softmax(torch.tanh(self.att(per_window)) @ self.q, dim=1)
         r = (alpha.unsqueeze(-1) * per_window).sum(1)
+        self.per_window = per_window
         self.last = (r.detach(), alpha.detach())
         return r, alpha, x[:, self.idx_rest]
+
+
+class TransitionEncoder(torch.nn.Module):
+    """Role transition of the research plan (section 14): q = MLP([r ; r^(1) − r^(7) ; r^(7) − r^(30)]).
+
+    The differences between scales compare today's role with the last week's and the last week's with the month's,
+    so a sudden switch (a quiet receiver that starts forwarding) shows as a large difference. All three windows end
+    at day t, so no state from earlier days is needed.
+    """
+
+    def __init__(self, dim: int):
+        super().__init__()
+        self.mlp = torch.nn.Sequential(Linear(3 * dim, dim), torch.nn.ReLU(), Linear(dim, dim), torch.nn.ReLU())
+        self.dim = dim
+
+    def forward(self, r: torch.Tensor, per_window: torch.Tensor) -> torch.Tensor:
+        """r [B, dim], per_window [B, 3, dim] in window order 1, 7, 30 days -> q [B, dim]."""
+        short, long = per_window[:, 0] - per_window[:, 1], per_window[:, 1] - per_window[:, 2]
+        return self.mlp(torch.cat([r, short, long], dim=-1))
+
+
+class GatedFusion(torch.nn.Module):
+    """Gated fusion of the research plan (section 16.1): g = σ(W_g [h ; r ; q]), z = g ⊙ h' + (1 − g) ⊙ u, where
+    h' and u map the graph embedding and the role branch [r ; q] to a common size."""
+
+    def __init__(self, graph_dim: int, role_dim: int, dim: int):
+        super().__init__()
+        self.h_proj, self.u_proj = Linear(graph_dim, dim), Linear(2 * role_dim, dim)
+        self.gate = Linear(graph_dim + 2 * role_dim, dim)
+        self.last_gate = None  # mean gate per row of the latest call, read by score_pass
+
+    def forward(self, h: torch.Tensor, r: torch.Tensor, q: torch.Tensor) -> torch.Tensor:
+        """Fused representation z [B, dim]."""
+        g = torch.sigmoid(self.gate(torch.cat([h, r, q], dim=-1)))
+        self.last_gate = g.detach().mean(-1)
+        return g * self.h_proj(h) + (1 - g) * self.u_proj(torch.cat([r, q], dim=-1))
 
 
 class TGNAccount(torch.nn.Module):
     """TGN memory and attention embedding with a link head and an account head (mule logit).
 
     n_features > 0 adds that many row features to the account head input. use_graph=False drops the memory,
-    attention and link head: the account head then reads only the deposit and the row features. With
-    role (a RoleEncoder), the head reads the fused role vector and the non-window inputs instead of the raw
-    window features.
+    attention and link head: the account head then reads only the deposit and the row features. The ablation
+    steps of the research plan stack on the TGN with features:
+      role (a RoleEncoder): the head reads the role vector r and the non-window inputs instead of the raw
+        window features (role state);
+      transition (a TransitionEncoder, needs role): the head also reads the transition vector q (role transition);
+      fusion (a GatedFusion, needs both and the graph): the head reads the gated mix of the graph embedding and
+        [r ; q] instead of the three side by side (full EarlyMule-TG).
     """
 
     def __init__(self, num_nodes: int, deposit: torch.Tensor, dim: int, neighbors: int, device, n_features: int = 0,
-                 use_graph: bool = True, role: RoleEncoder | None = None):
+                 use_graph: bool = True, role: RoleEncoder | None = None, transition: TransitionEncoder | None = None,
+                 fusion: GatedFusion | None = None):
         super().__init__()
+        if (transition and not role) or (fusion and not (transition and use_graph)):
+            raise ValueError("transition needs the role encoder; fusion needs the transition encoder and the graph")
         self.use_graph = use_graph
-        self.role = role
+        self.role, self.transition, self.fusion = role, transition, fusion
         if use_graph:
             msg_dim = 2
             self.memory = TGNMemory(num_nodes, msg_dim, dim, dim, message_module=IdentityMessage(msg_dim, dim, dim),
                                     aggregator_module=MeanAggregator())
             self.conv = TransformerConv(dim, dim // 2, heads=2, dropout=0.1, edge_dim=msg_dim + dim)
             self.link_src, self.link_dst, self.link_out = Linear(dim, dim), Linear(dim, dim), Linear(dim, 1)
-        head_in = (dim if use_graph else 0) + 1 + (role.dim + role.n_rest if role else n_features)
+        if fusion:
+            head_in = dim + 1 + role.n_rest
+        elif role:
+            head_in = (dim if use_graph else 0) + 1 + role.dim + (transition.dim if transition else 0) + role.n_rest
+        else:
+            head_in = (dim if use_graph else 0) + 1 + n_features
         self.head = torch.nn.Sequential(Linear(head_in, dim), torch.nn.ReLU(), Linear(dim, 1))
         self.register_buffer("deposit", deposit)
         self.to(device)
@@ -248,15 +298,19 @@ class TGNAccount(torch.nn.Module):
 
     def score(self, nodes: torch.Tensor, stream: Stream, x: torch.Tensor | None = None) -> torch.Tensor:
         """Mule logit of each node at the end of the current day; x = the rows' features when the head takes them."""
-        parts = [self.deposit[nodes].unsqueeze(-1)]
-        if self.use_graph:
-            parts.insert(0, self.embed(nodes, stream))
-        if x is not None:
-            if self.role is not None:
-                r, _, rest = self.role(x)
-                parts += [r, rest]
+        h = self.embed(nodes, stream) if self.use_graph else None
+        deposit = self.deposit[nodes].unsqueeze(-1)
+        if x is None or self.role is None:
+            # 1. TGN alone, TGN with raw features, or the control without the graph
+            parts = [p for p in (h, deposit, x) if p is not None]
+        else:
+            # 2. Role state, then transition, then gated fusion, each step on top of the previous one
+            r, _, rest = self.role(x)
+            q = self.transition(r, self.role.per_window) if self.transition else None
+            if self.fusion:
+                parts = [self.fusion(h, r, q), deposit, rest]
             else:
-                parts.append(x)
+                parts = [p for p in (h, deposit, r, q, rest) if p is not None]
         return self.head(torch.cat(parts, dim=-1)).squeeze(-1)
 
 
@@ -337,7 +391,7 @@ def score_pass(model, stream: Stream, score_rows: dict[str, dict], last_day: int
     model.eval()
     model.reset()
     out = {name: [] for name in score_rows}
-    role_r, role_alpha = [], []
+    role_r, role_alpha, gates = [], [], []
     for d in range(last_day + 1):
         model.observe(stream.day(d), stream)
         for name, rows in score_rows.items():
@@ -346,15 +400,21 @@ def score_pass(model, stream: Stream, score_rows: dict[str, dict], last_day: int
                 frame = pd.DataFrame({"acct_id": acct, "snapshot": d,
                                       "score": model.score(nodes, stream, x).cpu().numpy()})
                 out[name].append(frame if label is None else frame.assign(label=label))
-                # Collapse check of the role branch on the validation rows: spread of r and the window weights
-                if name == "val" and getattr(model, "role", None) is not None:
+                # Collapse check of the role branch on the validation rows: spread of r, window weights, gate
+                if name == "val" and getattr(model, "role", None) is not None and x is not None:
                     role_r.append(model.role.last[0])
                     role_alpha.append(model.role.last[1])
+                    if getattr(model, "fusion", None) is not None:
+                        gates.append(model.fusion.last_gate)
     if role_r:
         r, alpha = torch.cat(role_r), torch.cat(role_alpha)
         model.role_log = {"r_std_mean": round(r.std(0).mean().item(), 4), "r_std_min": round(r.std(0).min().item(), 4),
                           "alpha_mean": [round(v, 4) for v in alpha.mean(0).tolist()],
                           "alpha_std": [round(v, 4) for v in alpha.std(0).tolist()]}
+        if gates:
+            # Mean gate: share of the fused vector taken from the graph branch (1 = graph only, 0 = roles only)
+            g = torch.cat(gates)
+            model.role_log |= {"gate_mean": round(g.mean().item(), 4), "gate_std": round(g.std().item(), 4)}
     return {name: pd.concat(f, ignore_index=True) if f else pd.DataFrame() for name, f in out.items()}
 
 
@@ -406,8 +466,10 @@ def main() -> None:
     if cfg.get("role_encoder"):
         groups, rest = role_groups(scaler.input_names)
         role = RoleEncoder(groups, rest, cfg["role_dim"])
+    transition = TransitionEncoder(cfg["role_dim"]) if cfg.get("role_transition") else None
+    fusion = GatedFusion(cfg["dim"], cfg["role_dim"], cfg["dim"]) if cfg.get("gated_fusion") else None
     model = TGNAccount(len(nodes), deposit, cfg["dim"], cfg["neighbors"], device, scaler.width if scaler else 0,
-                       cfg.get("use_graph", True), role)
+                       cfg.get("use_graph", True), role, transition, fusion)
     opt = torch.optim.Adam(model.parameters(), lr=cfg["lr"])
     best, best_epoch, best_state, epochs = -1.0, 0, None, []
     for epoch in range(1, cfg["max_epochs"] + 1):

@@ -1,0 +1,7 @@
+# Role-transition step with a higher epoch cap: seed 0 of tgn_transition reached its best validation PR-AUC at
+# epoch 27 of at most 30 (2026-11-13), so the cap may have bound. Early stopping (patience 6) still picks the epoch;
+# the choice between this run and tgn_transition is made on mean validation PR-AUC, not on test.
+# Run: python -m earlymule.models.tgn --data <export folder> --config tgn_transition_e50.yaml [--seed N]
+base: tgn_transition.yaml
+run_name: tgn_transition_e50
+max_epochs: 50

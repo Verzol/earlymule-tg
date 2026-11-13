@@ -132,7 +132,7 @@ The current executable pipeline:
 
 **Current LightGBM does not use learned graph embeddings.** Counterparty counts carry network information, but they are not a graph model that learns relationships or temporal memory.
 
-A minimal TGN (`src/earlymule/models/tgn.py`) reads the same transfers as an event stream, keeps a memory per account and is trained on Kaggle; its scores go through the same evaluation as LightGBM. With the 1-, 7- and 30-day statistics added to its account head it alerts more mules before their first forwarding than LightGBM; the TGN alone and the statistics alone without the graph do not (`docs/evaluation_protocol.md` section 7).
+A minimal TGN (`src/earlymule/models/tgn.py`) reads the same transfers as an event stream, keeps a memory per account and is trained on Kaggle; its scores go through the same evaluation as LightGBM. With the 1-, 7- and 30-day statistics added to its account head it alerts more mules before their first forwarding than LightGBM; the TGN alone and the statistics alone without the graph do not (`docs/evaluation_protocol.md` section 7). A static GraphSAGE over each day's 30-day transfer graph (`src/earlymule/models/graphsage.py`), with the same statistics in its account head, lands level with LightGBM: the graph lifts the neural model to LightGBM, and the TGN's memory over the whole history adds the rest in two of three seeds.
 
 The alert list is currently an experimental output. The repository does not yet implement a live banking integration, an investigation interface or an operational response workflow.
 
@@ -147,7 +147,7 @@ Both branches use transfers observed by the scoring day:
 
 | Component | Intended representation | Status |
 |---|---|---|
-| Time-aware transaction graph | Who transacts with whom, amounts and the evolution of these relationships | Transfer event stream with each account's 10 most recent partners, used by the TGN; daily snapshot graphs for static graph models not implemented |
+| Time-aware transaction graph | Who transacts with whom, amounts and the evolution of these relationships | Transfer event stream with each account's 10 most recent partners, used by the TGN; 30-day snapshot graph of each day, built on the fly for the static GraphSAGE baseline |
 | Temporal graph encoder (TGN) | Account representations updated from observed transaction events | Minimal TGN implemented: memory per account, attention over recent partners, link and account losses |
 | 1-, 7- and 30-day statistics | Counts, amounts, counterparties, new counterparties and changes across windows | Many aggregates implemented; the plan's complete feature list is not |
 | Behavioral role encoder | A learned representation of receiving, collecting, relaying or distributing | Not implemented |

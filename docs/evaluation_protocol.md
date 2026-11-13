@@ -87,7 +87,7 @@ Day resolution throughout: an alert on day d uses transfers up to the end of day
 ## 7. Rules for every model
 
 1. Same split, ranked population, labels, alert rule and metrics as above; graph models build the graph of day t from transfers on or before t.
-2. Inputs only from the columns allowed in `docs/data_spec.md` section 6 (checked in code by `src/earlymule/data/leakage.py`).
+2. Inputs only from the columns allowed in `docs/data_spec.md` section 6 (checked in code by `src/earlymule/data/leakage.py`; the 13 leakage checks of the research plan are in `reports/data_leakage_audit.md`).
 3. Every choice (features, hyperparameters, training population, early stopping) is made on validation. Early stopping tracks validation PR-AUC only, with a patience of 1,000 rounds: on the weekly task with seed 1, validation PR-AUC was 0.742 at round 3, fell to 0.53 by round 50 and only reached its best, 0.797, at round 1,416.
 4. Every run is logged in `experiments/experiments.csv` with commit, seed, config and metrics; a run from uncommitted code is marked dirty and not reported.
 5. Scores are ranked as log-odds or raw scores, not saturated probabilities, which avoids most ties; remaining ties follow the ranking order above.

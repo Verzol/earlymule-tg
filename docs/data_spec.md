@@ -93,7 +93,7 @@ Compared with the research plan's ground truth list, every field is available ex
 
 ## 6. Columns a model may use
 
-Full table with reasons: `reports/column_classification.md`. Enforced in code by `src/earlymule/data/leakage.py` and its tests.
+Full table with reasons: `reports/column_classification.md`. Enforced in code by `src/earlymule/data/leakage.py` and its tests. The research plan's 13 leakage checks, with evidence for each: `reports/data_leakage_audit.md`.
 
 | Class | Columns |
 |---|---|

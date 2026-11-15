@@ -16,14 +16,16 @@ from earlymule.data.leakage import check_feature_columns, input_columns
 
 
 def load_transactions(run_dir: Path, base_date: pd.Timestamp) -> pd.DataFrame:
-    """All transfers (normal and illicit, as a bank would see them): orig_acct, bene_acct, base_amt, day.
+    """All transfers (normal and illicit, as a bank would see them): orig_acct, bene_acct, base_amt, day, seq.
 
-    Sorted by day so snapshots can slice by position.
+    Sorted by day, then seq, so snapshots can slice by position. seq is the execution order: tran_id is the
+    row number of tx_log.csv, whose balances chain in that order within each day (data.intraday_order).
+    It orders transfers only and is never a feature value.
     """
-    cols = [c for c in input_columns("transactions.csv") if c != "tran_id"]
-    tx = pd.read_csv(Path(run_dir) / "transactions.csv", usecols=cols)
+    tx = pd.read_csv(Path(run_dir) / "transactions.csv", usecols=input_columns("transactions.csv"))
     tx["day"] = amlsim.to_day(tx.pop("tran_timestamp"), base_date)
-    return tx.sort_values("day", kind="stable").reset_index(drop=True)
+    tx = tx.rename(columns={"tran_id": "seq"})
+    return tx.sort_values(["day", "seq"], kind="stable").reset_index(drop=True)
 
 
 def _side(tx: pd.DataFrame, acct_col: str, peer_col: str, acct_ids: pd.Index, prefix: str) -> pd.DataFrame:

@@ -89,7 +89,7 @@ Source transfers are 100–200 each and happen within 3–10 days (1–3 days fo
 
 Compared with the research plan's ground truth list, every field is available except the cash-out time: AMLSim records no cash withdrawals, so completion is the last illicit transfer.
 
-**Timing of the 942 mules.** Onset to completion: median 2 days, 90th percentile 7, maximum 19; 174 mules start and finish on the same day. First inflow before first outflow for 720, same day for 182 (order within a day unknown), outflow first for 40 (the cycle initiators, which send and later receive the loop's return).
+**Timing of the 942 mules.** Onset to completion: median 2 days, 90th percentile 7, maximum 19; 174 mules start and finish on the same day. First inflow before first outflow for 720, same day for 182 (all of them receive before they forward, in execution order; see limitation 5), outflow first for 40 (the cycle initiators, which send and later receive the loop's return).
 
 ## 6. Columns a model may use
 
@@ -98,7 +98,7 @@ Full table with reasons: `reports/column_classification.md`. Enforced in code by
 | Class | Columns |
 |---|---|
 | Input | `transactions.csv`: `orig_acct`, `bene_acct`, `base_amt`, `tran_timestamp` (as a day index); `tx_log.csv` balances; `accounts.csv`: `initial_deposit` |
-| Key only | `acct_id`, `tran_id`. Low account IDs are more active, so the ID itself is not a feature |
+| Key only | `acct_id`, `tran_id`. Low account IDs are more active, so the ID itself is not a feature. `tran_id` is the row number of `tx_log.csv` and gives the execution order within a day (column `seq` of `load_transactions`); it orders transfers and is never a feature value |
 | Evaluation only | `is_sar`, `alert_id`, `alert_type`, `prior_sar_count` (equals case membership), the whole ground truth table, the alert files, the generator's member and normal-model files |
 | Dropped | Constant or empty columns, and random personal and location data (names, addresses, birth dates, coordinates) |
 
@@ -158,7 +158,7 @@ Weekly scoring is close to its ceiling; daily scoring is where early-detection m
 2. **Initial balance follows activity** because of change 5 (ROC-AUC 0.64 over all accounts, 0.50 over regular accounts).
 3. **Normal behaviour is very regular.** Normal models pay fixed counterparties on fixed schedules, so "new counterparty" features are strong: 99% of mules meet a new counterparty in the week they start, against 10% of regular accounts. Real customers pay new people more often, so the task is likely easier than in practice.
 4. **Mule behaviour is clean.** Mules forward exactly 90% (2 of 621 forward less, because a normal transfer took most of their balance), and illicit amounts are smaller than normal ones (median 156 against 550).
-5. **Same-day activity.** 174 mules start and finish on one day; at day resolution they cannot be caught before completion.
+5. **Same-day activity.** 174 mules start and finish on one day; scored at the end of the day they cannot be caught before completion. Timestamps carry no time of day, but the execution order within a day is known: `tx_log.csv` lists transfers in the order the simulator ran them, and each transfer's old balance equals the new balance of the account's previous transfer in that order for all 3,546,910 consecutive pairs, 954,012 of them on the same day (`python -m earlymule.data.intraday_order`, 2026-11-15). `tran_id` is that row number (the 10K run drops one duplicated log row, tran_id 49053). End-of-day scoring does not use the order, so no reported number changes; scoring a transfer before it is executed can.
 6. **One case per mule.** No account is reused across cases, so recruitment and repeated use over weeks are not represented.
 7. **Small test set.** About 220 mules in the test period; 95% case-bootstrap intervals are about ±0.05 on weekly PR-AUC and ±0.07 on detection before forwarding.
 

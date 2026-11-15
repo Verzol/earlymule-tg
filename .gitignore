@@ -39,6 +39,8 @@ kaggle.json
 
 # Local working files; never commit
 /.local/
+# Generated Kaggle notebook folders of the LightGBM ablation (make_batches.py)
+notebooks/kaggle/lgbm_ablation/batches/
 
 # External personal skills checkout; never stage or commit in this repository
 /verzol-ai-skills/

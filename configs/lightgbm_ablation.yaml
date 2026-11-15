@@ -1,0 +1,50 @@
+# Feature-family ablation of the daily LightGBM, trained from a Kaggle export (EMTG-70).
+# Run: python -m earlymule.models.lightgbm_export --data <export folder> --ablation no_churn [--seed N]
+base: daily.yaml
+run_name: lgbm_abl   # each run is logged as lgbm_abl_<ablation>
+
+# Column -> family by regular expression on the export's column names (data spec section 7); every model
+# feature must match exactly one family (checked at start-up)
+families:
+  activity: ['^(n|amt)_(in|out)_\d+d$']
+  fan: ['^peers_(in|out)_\d+d$']
+  pass_through: ['^out_in_ratio_']
+  imbalance: ['^imbalance_']
+  churn: ['^new_(peers|share)_']
+  burstiness: ['^burst_']
+  rapid_forward: ['^fwd_']
+  dwell: ['^dwell_']
+  two_hop: ['^up_amt_in_', '^down_amt_out_']
+  entropy: ['^ent_']
+  cross_window: ['_7d_over_30d$']
+  recency: ['^days_since_']
+  static: ['^initial_deposit$']
+
+# Window -> column patterns; the 7d/30d ratios need both windows, so they go with either
+windows_patterns:
+  1d: ['_1d$']
+  7d: ['_7d$', '_7d_over_30d$']
+  30d: ['_30d$', '_7d_over_30d$']
+
+# 18 ablations: the full set, one family left out at a time, one window left out at a time, and the three
+# families that carry the simulator's regularities (new partners, 90% forwarding) left out together, since
+# leaving out one of them alone can be masked by the other two
+ablations:
+  full: {}
+  no_activity: {families: [activity]}
+  no_fan: {families: [fan]}
+  no_pass_through: {families: [pass_through]}
+  no_imbalance: {families: [imbalance]}
+  no_churn: {families: [churn]}
+  no_burstiness: {families: [burstiness]}
+  no_rapid_forward: {families: [rapid_forward]}
+  no_dwell: {families: [dwell]}
+  no_two_hop: {families: [two_hop]}
+  no_entropy: {families: [entropy]}
+  no_cross_window: {families: [cross_window]}
+  no_recency: {families: [recency]}
+  no_static: {families: [static]}
+  no_window_1d: {windows: [1d]}
+  no_window_7d: {windows: [7d]}
+  no_window_30d: {windows: [30d]}
+  no_shortcuts: {families: [churn, pass_through, rapid_forward]}

@@ -61,7 +61,11 @@ def main() -> None:
     out_dir = paths.experiments / "runs" / ("debug" if args.no_log else "") / run_name / folder / f"seed{meta['seed']}"
     out_dir.mkdir(parents=True, exist_ok=True)
     shutil.copy(source / "run_meta.json", out_dir / "run_meta.json")
-    metrics = {k: meta[k] for k in ["best_epoch", "best_val_pr_auc", "params", "seconds", "device"] if k in meta}
+    # best_iteration and train_rows come from LightGBM runs on an export (models.lightgbm_export)
+    metrics = {k: meta[k] for k in ["best_epoch", "best_iteration", "best_val_pr_auc", "params", "train_rows",
+                                    "seconds", "device"] if k in meta}
+    if isinstance(meta.get("features"), list):
+        metrics["features"] = len(meta["features"])
     metrics.update(evaluate_daily(scored, inputs, cfg, out_dir))
 
     # 4. Log with the model run's commit, not this machine's

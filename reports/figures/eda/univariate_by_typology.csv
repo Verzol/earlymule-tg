@@ -1,0 +1,16 @@
+typology,mules,feature,roc_auc,median_mule,median_other
+cycle,160,new_share_in_7d,0.9401666135204082,1.0,0.0
+cycle,160,n_in_7d_over_30d,0.9222180590986393,1.0,0.20661157369613647
+cycle,160,new_share_in_30d,0.9213448660714286,1.0,0.0
+mule_collect_disperse,121,new_share_in_7d,0.9758647467251363,1.0,0.0
+mule_collect_disperse,121,new_share_in_30d,0.9439523950075897,1.0,0.0
+mule_collect_disperse,121,n_in_7d_over_30d,0.9438076263563278,1.0,0.20661157369613647
+mule_collect_exit,132,new_share_in_7d,0.9813991316223458,1.0,0.0
+mule_collect_exit,132,new_peers_in_7d,0.9758277932385075,3.0,0.0
+mule_collect_exit,132,n_in_7d_over_30d,0.9593447227375798,1.0,0.20661157369613647
+mule_fan_in_out,123,new_share_in_7d,0.9721492865438859,1.0,0.0
+mule_fan_in_out,123,new_peers_in_7d,0.9541794563353797,2.0,0.0
+mule_fan_in_out,123,n_in_7d_over_30d,0.9496297909407667,1.0,0.20661157369613647
+mule_relay_chain,84,new_share_in_7d,0.9741496598639456,1.0,0.0
+mule_relay_chain,84,n_in_7d_over_30d,0.9523682985098803,1.0,0.20661157369613647
+mule_relay_chain,84,new_share_in_30d,0.9435232426303855,1.0,0.0

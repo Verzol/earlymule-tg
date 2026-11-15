@@ -1,0 +1,143 @@
+{
+ "accounts": 96344,
+ "active": 31560,
+ "regular_end": 15416,
+ "mules": 942,
+ "gap_median": 2.0,
+ "same_day": 0.2356687898089172,
+ "one_day": 0.22505307855626328,
+ "same_day_order": {
+  "different days": 720,
+  "receives first": 182,
+  "forwards first": 40
+ },
+ "decision_rows": {
+  "mules": 620,
+  "controls": 11760
+ },
+ "top_features": [
+  {
+   "feature": "new_share_in_7d",
+   "roc_auc": 0.967,
+   "ks": 0.77
+  },
+  {
+   "feature": "new_peers_in_7d",
+   "roc_auc": 0.94,
+   "ks": 0.88
+  },
+  {
+   "feature": "n_in_7d_over_30d",
+   "roc_auc": 0.939,
+   "ks": 0.707
+  },
+  {
+   "feature": "new_share_in_30d",
+   "roc_auc": 0.93,
+   "ks": 0.615
+  },
+  {
+   "feature": "days_since_last_in",
+   "roc_auc": 0.097,
+   "ks": 0.617
+  },
+  {
+   "feature": "new_peers_in_30d",
+   "roc_auc": 0.886,
+   "ks": 0.789
+  },
+  {
+   "feature": "amt_in_7d_over_30d",
+   "roc_auc": 0.879,
+   "ks": 0.576
+  },
+  {
+   "feature": "peers_in_7d",
+   "roc_auc": 0.86,
+   "ks": 0.691
+  },
+  {
+   "feature": "n_in_7d",
+   "roc_auc": 0.855,
+   "ks": 0.691
+  },
+  {
+   "feature": "peers_in_7d_over_30d",
+   "roc_auc": 0.826,
+   "ks": 0.464
+  }
+ ],
+ "family_best_auc": {
+  "static": 0.505,
+  "dwell": 0.613,
+  "rapid_forward": 0.655,
+  "entropy": 0.721,
+  "burstiness": 0.731,
+  "pass_through": 0.741,
+  "imbalance": 0.781,
+  "two_hop": 0.796,
+  "activity": 0.855,
+  "fan": 0.86,
+  "recency": 0.903,
+  "cross_window": 0.939,
+  "churn": 0.967
+ },
+ "before_onset_best_auc": 0.515,
+ "clusters": 48,
+ "shortcuts": {
+  "forwarded share, median (layered mules)": 0.9,
+  "forwarded share within 0.89-0.91 (layered)": 0.9968,
+  "illicit amount, median": 155.54,
+  "normal amount, median": 549.82,
+  "first illicit outflow / balance before, median": 0.0025,
+  "mules with a new partner in 7d at decision point": 0.9758,
+  "controls with a new partner in 7d": 0.1741
+ },
+ "eligible_test_mules": 173,
+ "never_caught_by_either": 12,
+ "caught_by_lightgbm_typology": {
+  "cycle": 0.583,
+  "mule_collect_disperse": 0.929,
+  "mule_collect_exit": 0.857,
+  "mule_fan_in_out": 0.823,
+  "mule_relay_chain": 0.869
+ },
+ "alert_kinds": {
+  "LightGBM seed 0": {
+   "other account": 0.4878,
+   "case member, not mule": 0.325,
+   "active mule": 0.1194,
+   "mule outside case days": 0.0678
+  },
+  "LightGBM seed 1": {
+   "other account": 0.4911,
+   "case member, not mule": 0.3211,
+   "active mule": 0.1206,
+   "mule outside case days": 0.0672
+  },
+  "LightGBM seed 2": {
+   "other account": 0.4811,
+   "case member, not mule": 0.3267,
+   "active mule": 0.1194,
+   "mule outside case days": 0.0728
+  },
+  "role transition seed 0": {
+   "other account": 0.5389,
+   "case member, not mule": 0.2906,
+   "active mule": 0.12,
+   "mule outside case days": 0.0506
+  },
+  "role transition seed 1": {
+   "other account": 0.5194,
+   "case member, not mule": 0.3067,
+   "active mule": 0.1194,
+   "mule outside case days": 0.0544
+  },
+  "role transition seed 2": {
+   "other account": 0.5317,
+   "case member, not mule": 0.3011,
+   "active mule": 0.12,
+   "mule outside case days": 0.0472
+  }
+ }
+}

@@ -1,0 +1,49 @@
+cluster,size,representative,best_auc,members
+36,5,imbalance_1d,0.2691322416063199,"imbalance_1d, out_in_ratio_1d, fwd_0d_1d, amt_out_1d, n_out_1d"
+31,4,new_share_out_30d,0.49504855167873607,"new_share_out_30d, new_peers_out_7d, new_share_out_7d, new_peers_out_30d"
+28,4,peers_in_7d,0.8603546741277155,"peers_in_7d, n_in_7d, amt_in_7d, ent_in_7d"
+20,3,peers_out_30d,0.4925234529295589,"peers_out_30d, ent_out_30d, peers_out_7d_over_30d"
+22,3,peers_in_1d,0.7272963298222515,"peers_in_1d, n_in_1d, amt_in_1d"
+8,2,fwd_0d_7d,0.6157458991661181,"fwd_0d_7d, dwell_min_7d"
+14,2,new_share_in_1d,0.7403644804696072,"new_share_in_1d, new_peers_in_1d"
+15,2,new_share_in_7d,0.9668611476848805,"new_share_in_7d, new_peers_in_7d"
+26,2,n_in_30d,0.7455107526881719,"n_in_30d, amt_in_30d"
+24,2,imbalance_7d,0.21855010149220983,"imbalance_7d, out_in_ratio_7d"
+25,2,out_in_ratio_30d,0.7412354619267063,"out_in_ratio_30d, imbalance_30d"
+12,2,n_in_7d_over_30d,0.938684167215273,"n_in_7d_over_30d, amt_in_7d_over_30d"
+27,2,peers_in_30d,0.8041460939214395,"peers_in_30d, ent_in_30d"
+35,2,ent_out_1d,0.4977465986394558,"ent_out_1d, peers_out_1d"
+39,2,peers_out_7d,0.49563652073732717,"peers_out_7d, ent_out_7d"
+30,2,new_peers_out_1d,0.5015525565064736,"new_peers_out_1d, new_share_out_1d"
+16,1,new_peers_in_30d,0.8864365947992099,new_peers_in_30d
+13,1,peers_in_7d_over_30d,0.8261138770024137,peers_in_7d_over_30d
+10,1,dwell_min_30d,0.4069206029185868,dwell_min_30d
+11,1,dwell_med_7d,0.4239030612244899,dwell_med_7d
+9,1,fwd_0d_30d,0.6132514538073295,fwd_0d_30d
+5,1,burst_30d,0.7312789389949528,burst_30d
+6,1,fwd_1d_7d,0.6546964834320825,fwd_1d_7d
+7,1,fwd_1d_30d,0.48851265909589636,fwd_1d_30d
+2,1,fwd_3d_30d,0.45637940256747855,fwd_3d_30d
+3,1,dwell_med_30d,0.38660714285714276,dwell_med_30d
+1,1,fwd_3d_7d,0.49441888852315125,fwd_3d_7d
+4,1,burst_7d,0.4761577655255651,burst_7d
+17,1,new_share_in_30d,0.9300693301514154,new_share_in_30d
+23,1,ent_in_1d,0.5517521121351766,ent_in_1d
+18,1,up_amt_in_7d,0.7961403472679394,up_amt_in_7d
+19,1,up_amt_in_30d,0.47663059578670175,up_amt_in_30d
+32,1,n_out_7d_over_30d,0.4882188117182356,n_out_7d_over_30d
+29,1,days_since_last_in,0.09747785001097209,days_since_last_in
+21,1,down_amt_out_30d,0.4930798771121352,down_amt_out_30d
+34,1,days_since_last_tx,0.2209954465657231,days_since_last_tx
+33,1,days_since_last_out,0.4849170232609173,days_since_last_out
+37,1,amt_out_7d,0.48670246324336186,amt_out_7d
+38,1,amt_out_7d_over_30d,0.48365659973666886,amt_out_7d_over_30d
+40,1,n_out_7d,0.49401099956111477,n_out_7d
+41,1,n_out_30d,0.501731127935045,n_out_30d
+42,1,amt_out_30d,0.5058744102479702,amt_out_30d
+43,1,initial_deposit,0.5047269310950186,initial_deposit
+44,1,down_amt_out_7d,0.505495528856704,down_amt_out_7d
+45,1,up_amt_in_1d,0.5499924566600833,up_amt_in_1d
+46,1,down_amt_out_1d,0.5019884244020189,down_amt_out_1d
+47,1,dwell_med_1d,0.5,dwell_med_1d
+48,1,dwell_min_1d,0.5,dwell_min_1d

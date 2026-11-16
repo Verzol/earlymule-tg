@@ -1,0 +1,74 @@
+feature,base,window,meaning
+n_out_1d,n_out,1d,number of transfers sent
+amt_out_1d,amt_out,1d,total amount sent
+peers_out_1d,peers_out,1d,distinct accounts paid
+n_in_1d,n_in,1d,number of transfers received
+amt_in_1d,amt_in,1d,total amount received
+peers_in_1d,peers_in,1d,distinct accounts that paid in
+out_in_ratio_1d,out_in_ratio,1d,amount sent divided by amount received
+new_peers_out_1d,new_peers_out,1d,accounts paid for the first time ever inside the window
+new_peers_in_1d,new_peers_in,1d,senders seen for the first time ever inside the window
+new_share_out_1d,new_share_out,1d,share of the accounts paid that are new
+new_share_in_1d,new_share_in,1d,share of the senders that are new
+imbalance_1d,imbalance,1d,"(sent - received) / (sent + received), from -1 (only receives) to +1 (only sends)"
+fwd_0d_1d,fwd_0d,1d,share of the money received that is sent on the same day
+dwell_med_1d,dwell_med,1d,median days from a day with money in to the next day with money out
+dwell_min_1d,dwell_min,1d,shortest such wait in days
+up_amt_in_1d,up_amt_in,1d,money that the account's senders themselves received in the window
+down_amt_out_1d,down_amt_out,1d,money that the accounts it paid themselves sent on in the window
+ent_out_1d,ent_out,1d,how evenly the money sent is spread over receivers (entropy)
+ent_in_1d,ent_in,1d,how evenly the money received is spread over senders (entropy)
+n_out_7d,n_out,7d,number of transfers sent
+amt_out_7d,amt_out,7d,total amount sent
+peers_out_7d,peers_out,7d,distinct accounts paid
+n_in_7d,n_in,7d,number of transfers received
+amt_in_7d,amt_in,7d,total amount received
+peers_in_7d,peers_in,7d,distinct accounts that paid in
+out_in_ratio_7d,out_in_ratio,7d,amount sent divided by amount received
+new_peers_out_7d,new_peers_out,7d,accounts paid for the first time ever inside the window
+new_peers_in_7d,new_peers_in,7d,senders seen for the first time ever inside the window
+new_share_out_7d,new_share_out,7d,share of the accounts paid that are new
+new_share_in_7d,new_share_in,7d,share of the senders that are new
+imbalance_7d,imbalance,7d,"(sent - received) / (sent + received), from -1 (only receives) to +1 (only sends)"
+burst_7d,burst,7d,(sd - mean) / (sd + mean) of the gaps between transfers; -1 = perfectly regular
+fwd_0d_7d,fwd_0d,7d,share of the money received that is sent on the same day
+fwd_1d_7d,fwd_1d,7d,share of the money received that is sent on within 1 day
+fwd_3d_7d,fwd_3d,7d,share of the money received that is sent on within 3 days
+dwell_med_7d,dwell_med,7d,median days from a day with money in to the next day with money out
+dwell_min_7d,dwell_min,7d,shortest such wait in days
+up_amt_in_7d,up_amt_in,7d,money that the account's senders themselves received in the window
+down_amt_out_7d,down_amt_out,7d,money that the accounts it paid themselves sent on in the window
+ent_out_7d,ent_out,7d,how evenly the money sent is spread over receivers (entropy)
+ent_in_7d,ent_in,7d,how evenly the money received is spread over senders (entropy)
+n_out_30d,n_out,30d,number of transfers sent
+amt_out_30d,amt_out,30d,total amount sent
+peers_out_30d,peers_out,30d,distinct accounts paid
+n_in_30d,n_in,30d,number of transfers received
+amt_in_30d,amt_in,30d,total amount received
+peers_in_30d,peers_in,30d,distinct accounts that paid in
+out_in_ratio_30d,out_in_ratio,30d,amount sent divided by amount received
+new_peers_out_30d,new_peers_out,30d,accounts paid for the first time ever inside the window
+new_peers_in_30d,new_peers_in,30d,senders seen for the first time ever inside the window
+new_share_out_30d,new_share_out,30d,share of the accounts paid that are new
+new_share_in_30d,new_share_in,30d,share of the senders that are new
+imbalance_30d,imbalance,30d,"(sent - received) / (sent + received), from -1 (only receives) to +1 (only sends)"
+burst_30d,burst,30d,(sd - mean) / (sd + mean) of the gaps between transfers; -1 = perfectly regular
+fwd_0d_30d,fwd_0d,30d,share of the money received that is sent on the same day
+fwd_1d_30d,fwd_1d,30d,share of the money received that is sent on within 1 day
+fwd_3d_30d,fwd_3d,30d,share of the money received that is sent on within 3 days
+dwell_med_30d,dwell_med,30d,median days from a day with money in to the next day with money out
+dwell_min_30d,dwell_min,30d,shortest such wait in days
+up_amt_in_30d,up_amt_in,30d,money that the account's senders themselves received in the window
+down_amt_out_30d,down_amt_out,30d,money that the accounts it paid themselves sent on in the window
+ent_out_30d,ent_out,30d,how evenly the money sent is spread over receivers (entropy)
+ent_in_30d,ent_in,30d,how evenly the money received is spread over senders (entropy)
+n_out_7d_over_30d,n_out,7d_over_30d,7-day number of transfers sent as a share of the 30-day value
+n_in_7d_over_30d,n_in,7d_over_30d,7-day number of transfers received as a share of the 30-day value
+peers_out_7d_over_30d,peers_out,7d_over_30d,7-day distinct accounts paid as a share of the 30-day value
+peers_in_7d_over_30d,peers_in,7d_over_30d,7-day distinct accounts that paid in as a share of the 30-day value
+amt_out_7d_over_30d,amt_out,7d_over_30d,7-day total amount sent as a share of the 30-day value
+amt_in_7d_over_30d,amt_in,7d_over_30d,7-day total amount received as a share of the 30-day value
+days_since_last_tx,days_since_last_tx,whole history,days since the last transfer of any kind
+days_since_last_out,days_since_last_out,whole history,days since the last transfer sent
+days_since_last_in,days_since_last_in,whole history,days since the last transfer received
+initial_deposit,initial_deposit,whole history,opening balance of the account

@@ -1,0 +1,74 @@
+feature,median mule,median regular account,roc_auc,strength,meaning
+new_share_in_7d,1.0,0.0,0.9668611476848805,0.9668611476848805,share of the senders that are new
+new_peers_in_7d,1.0,0.0,0.9395937568575818,0.9395937568575818,senders seen for the first time ever inside the window
+n_in_7d_over_30d,1.0,0.20661157369613647,0.938684167215273,0.938684167215273,7-day number of transfers received as a share of the 30-day value
+new_share_in_30d,1.0,0.0,0.9300693301514154,0.9300693301514154,share of the senders that are new
+days_since_last_in,0.0,7.0,0.09747785001097209,0.9025221499890279,days since the last transfer received
+new_peers_in_30d,1.0,0.0,0.8864365947992099,0.8864365947992099,senders seen for the first time ever inside the window
+amt_in_7d_over_30d,1.0,0.19920049607753754,0.8792745364274743,0.8792745364274743,7-day total amount received as a share of the 30-day value
+peers_in_7d,2.0,0.0,0.8603546741277155,0.8603546741277155,distinct accounts that paid in
+n_in_7d,2.0,0.0,0.8549564543559358,0.8549564543559358,number of transfers received
+peers_in_7d_over_30d,1.0,0.48275861144065857,0.8261138770024137,0.8261138770024137,7-day distinct accounts that paid in as a share of the 30-day value
+peers_in_30d,2.0,0.0,0.8041460939214395,0.8041460939214395,distinct accounts that paid in
+up_amt_in_7d,605.1699829101562,0.0,0.7961403472679394,0.7961403472679394,money that the account's senders themselves received in the window
+amt_in_7d,490.59002685546875,0.0,0.7893658794162826,0.7893658794162826,total amount received
+imbalance_7d,0.025517549365758896,1.0,0.21855010149220983,0.7814498985077902,"(sent - received) / (sent + received), from -1 (only receives) to +1 (only sends)"
+days_since_last_tx,0.0,2.0,0.2209954465657231,0.7790045534342769,days since the last transfer of any kind
+n_in_30d,3.0,0.0,0.7455107526881719,0.7455107526881719,number of transfers received
+out_in_ratio_30d,3.770195960998535,0.7488899230957031,0.7412354619267063,0.7412354619267063,amount sent divided by amount received
+new_share_in_1d,1.0,0.0,0.7403644804696072,0.7403644804696072,share of the senders that are new
+out_in_ratio_7d,1.0342599153518677,0.3008618950843811,0.7377629882598202,0.7377629882598202,amount sent divided by amount received
+new_peers_in_1d,0.0,0.0,0.7373698430985298,0.7373698430985298,senders seen for the first time ever inside the window
+burst_30d,-0.23960940539836884,-0.75,0.7312789389949528,0.7312789389949528,(sd - mean) / (sd + mean) of the gaps between transfers; -1 = perfectly regular
+imbalance_1d,-1.0,1.0,0.2691322416063199,0.7308677583936801,"(sent - received) / (sent + received), from -1 (only receives) to +1 (only sends)"
+peers_in_1d,1.0,0.0,0.7272963298222515,0.7272963298222515,distinct accounts that paid in
+n_in_1d,1.0,0.0,0.7271504004827738,0.7271504004827738,number of transfers received
+ent_in_7d,0.6835193037986755,0.0,0.7210003840245776,0.7210003840245776,how evenly the money received is spread over senders (entropy)
+amt_in_1d,132.10000610351562,0.0,0.7152579822251482,0.7152579822251482,total amount received
+imbalance_30d,0.5807299613952637,1.0,0.2990311608514373,0.7009688391485627,"(sent - received) / (sent + received), from -1 (only receives) to +1 (only sends)"
+amt_in_30d,656.2100219726562,0.0,0.6990609913320167,0.6990609913320167,total amount received
+fwd_1d_7d,0.0,0.0,0.6546964834320825,0.6546964834320825,share of the money received that is sent on within 1 day
+fwd_0d_7d,0.0,0.0,0.6157458991661181,0.6157458991661181,share of the money received that is sent on the same day
+dwell_med_30d,2.0,3.0,0.38660714285714276,0.6133928571428573,median days from a day with money in to the next day with money out
+fwd_0d_30d,0.0,0.0,0.6132514538073295,0.6132514538073295,share of the money received that is sent on the same day
+dwell_min_30d,0.0,1.0,0.4069206029185868,0.5930793970814132,shortest such wait in days
+dwell_med_7d,1.0,1.5,0.4239030612244899,0.5760969387755102,median days from a day with money in to the next day with money out
+dwell_min_7d,0.0,0.0,0.5540228631775291,0.5540228631775291,shortest such wait in days
+ent_in_30d,0.686776876449585,0.4992962181568146,0.5518859035549702,0.5518859035549702,how evenly the money received is spread over senders (entropy)
+ent_in_1d,0.0,0.0,0.5517521121351766,0.5517521121351766,how evenly the money received is spread over senders (entropy)
+up_amt_in_1d,0.0,0.0,0.5499924566600833,0.5499924566600833,money that the account's senders themselves received in the window
+fwd_3d_30d,0.19599631428718567,0.26970285177230835,0.45637940256747855,0.5436205974325214,share of the money received that is sent on within 3 days
+out_in_ratio_1d,0.0,0.0,0.5381041529515032,0.5381041529515032,amount sent divided by amount received
+fwd_0d_1d,0.0,0.0,0.5380723337722185,0.5380723337722185,share of the money received that is sent on the same day
+burst_7d,-0.07179676741361618,-0.01428863126784563,0.4761577655255651,0.5238422344744349,(sd - mean) / (sd + mean) of the gaps between transfers; -1 = perfectly regular
+up_amt_in_30d,2094.094970703125,2647.98486328125,0.47663059578670175,0.5233694042132983,money that the account's senders themselves received in the window
+amt_out_7d_over_30d,0.22677651047706604,0.2326681911945343,0.48365659973666886,0.5163434002633311,7-day total amount sent as a share of the 30-day value
+days_since_last_out,2.0,3.0,0.4849170232609173,0.5150829767390828,days since the last transfer sent
+amt_out_7d,595.64501953125,600.989990234375,0.48670246324336186,0.5132975367566381,total amount sent
+n_out_7d_over_30d,0.25,0.25,0.4882188117182356,0.5117811882817644,7-day number of transfers sent as a share of the 30-day value
+fwd_1d_30d,0.0,0.05266621708869934,0.48851265909589636,0.5114873409041036,share of the money received that is sent on within 1 day
+peers_out_30d,2.0,2.0,0.4925234529295589,0.5074765470704411,distinct accounts paid
+down_amt_out_30d,5767.6201171875,5965.05517578125,0.4930798771121352,0.5069201228878648,money that the accounts it paid themselves sent on in the window
+n_out_7d,1.0,1.0,0.49401099956111477,0.5059890004388852,number of transfers sent
+amt_out_30d,2497.260009765625,2458.72509765625,0.5058744102479702,0.5058744102479702,total amount sent
+ent_out_30d,0.7622028589248657,1.125213861465454,0.4943157504937458,0.5056842495062541,how evenly the money sent is spread over receivers (entropy)
+fwd_3d_7d,0.045269925147295,0.08694985508918762,0.49441888852315125,0.5055811114768487,share of the money received that is sent on within 3 days
+down_amt_out_7d,570.1650390625,565.9550170898438,0.505495528856704,0.505495528856704,money that the accounts it paid themselves sent on in the window
+new_share_out_30d,0.0,0.0,0.49504855167873607,0.5049514483212639,share of the accounts paid that are new
+initial_deposit,86737.56,87445.525,0.5047269310950186,0.5047269310950186,opening balance of the account
+new_peers_out_7d,0.0,0.0,0.49540816326530607,0.504591836734694,accounts paid for the first time ever inside the window
+new_share_out_7d,0.0,0.0,0.49549662606978273,0.5045033739302173,share of the accounts paid that are new
+peers_out_7d,1.0,1.0,0.49563652073732717,0.5043634792626728,distinct accounts paid
+new_peers_out_30d,0.0,0.0,0.4959720622119816,0.5040279377880184,accounts paid for the first time ever inside the window
+ent_out_7d,0.0,0.0,0.4969970649550143,0.5030029350449857,how evenly the money sent is spread over receivers (entropy)
+peers_out_7d_over_30d,0.5,0.4000000059604645,0.5025707016677639,0.5025707016677639,7-day distinct accounts paid as a share of the 30-day value
+ent_out_1d,0.0,0.0,0.4977465986394558,0.5022534013605442,how evenly the money sent is spread over receivers (entropy)
+amt_out_1d,0.0,0.0,0.5020288841342988,0.5020288841342988,total amount sent
+down_amt_out_1d,0.0,0.0,0.5019884244020189,0.5019884244020189,money that the accounts it paid themselves sent on in the window
+n_out_1d,0.0,0.0,0.5018101272767171,0.5018101272767171,number of transfers sent
+peers_out_1d,0.0,0.0,0.5017752907614659,0.5017752907614659,distinct accounts paid
+n_out_30d,4.0,4.0,0.501731127935045,0.501731127935045,number of transfers sent
+new_peers_out_1d,0.0,0.0,0.5015525565064736,0.5015525565064736,accounts paid for the first time ever inside the window
+new_share_out_1d,0.0,0.0,0.5015525565064736,0.5015525565064736,share of the accounts paid that are new
+dwell_med_1d,0.0,0.0,0.5,0.5,median days from a day with money in to the next day with money out
+dwell_min_1d,0.0,0.0,0.5,0.5,shortest such wait in days

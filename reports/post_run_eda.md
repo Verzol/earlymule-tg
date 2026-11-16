@@ -2,6 +2,8 @@
 
 2026-11-15, EMTG-69. Notebook: `notebooks/02_post_run_eda.ipynb` (about 5 minutes in WSL); helpers: `src/earlymule/analysis/eda.py`; tables and figures: `reports/figures/eda/`. The earlier EDA (`notebooks/01_amlsim_eda.ipynb`) checked feasibility on the old 10K run before AMLSim was modified; this one covers the dataset the models are trained on, the 72 point-in-time features plus `initial_deposit`, and the test outcomes of two trained models.
 
+**Explained version (2026-11-16).** `notebooks/03_eda_explained.ipynb` repeats this analysis in 13 short parts with simple helpers (`src/earlymule/analysis/eda_explained.py`), random scored accounts on the same day as the only reference group, a feature dictionary, one example mule per typology, a comparison with non-mule case members and a leakage check; slide-ready charts are in `figures/eda_explained/` (numbered by part). Its numbers match those below; it adds findings 10 and 11.
+
 **Decision point.** End-of-day scoring can stop a mule only on a day before its first illicit outflow, so the features are compared at the end of day (first outflow − 1): 620 mules that leave at least one day and are in the scored population by then, against 11,760 regular accounts outside every case (30 per day, same days). The single-feature ROC-AUC is reported in either direction (below 0.5 = lower in mules).
 
 ## Findings
@@ -51,6 +53,10 @@
    - 126 mules are caught by both models in all seeds; 12 are never caught by either.
 
 9. **Where the alerts go.** About 12% of alerts land on an active mule, the ceiling at this budget (protocol section 5). Case members that are not mules take 32% of LightGBM alerts and 29% to 31% of role-transition alerts: sources and exits also receive from new partners during a case. 48% to 54% go to other accounts and 5% to 7% to mules outside their case days.
+
+10. **Ordinary accounts are clockwork.** Over 720 days, a scored account outside every case has a median of 2 distinct partners, sends or receives half of its transfers with its top partner, and 21% of them have exactly the same gap between all their active days (explained notebook, part 3). This is the root of the counterparty-churn signal.
+
+11. **Why sources and exits draw alerts.** On their first illicit day, case members that are not mules have a median `new_share_in_7d` of 0.67 (mules 1.00, regular accounts 0.00) and a raised `n_in_7d_over_30d` (0.43 against 0.20): they also deal with new partners during a case, so a model built on that signal scores them high (explained notebook, part 10).
 
 ## What this means for the next steps
 

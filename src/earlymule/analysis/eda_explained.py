@@ -3,23 +3,23 @@
 Every function does one small thing with pandas, so each step can be checked by hand. Day indices use the
 end-of-day cut-off of load_transactions; `seq` is the execution order within a day. Labels (is_sar, mule
 ground truth) are read for analysis only and never enter a feature. Chart helpers draw slide-ready PNGs in one
-fixed palette: regular accounts blue, mules orange, non-mule case members aqua.
+fixed palette: regular accounts blue, mules orange, non-mule case members aqua; inside a notebook each chart
+is also shown under its cell.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-import matplotlib
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from IPython import get_ipython
+from IPython.display import display
+from sklearn.metrics import roc_auc_score
 
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
-import numpy as np  # noqa: E402
-import pandas as pd  # noqa: E402
-from sklearn.metrics import roc_auc_score  # noqa: E402
-
-from earlymule.data import amlsim  # noqa: E402
-from earlymule.features.point_in_time import snapshot_features  # noqa: E402
+from earlymule.data import amlsim
+from earlymule.features.point_in_time import snapshot_features
 
 # Slide palette (dataviz reference palette, validated for colour-blind readers as a set of three)
 BLUE, ORANGE, AQUA = "#2a78d6", "#eb6834", "#1baf7a"
@@ -63,9 +63,11 @@ def slide_style() -> None:
 
 
 def save(fig, path: Path) -> None:
-    """Tight layout, save at slide resolution, close."""
+    """Tight layout, save at slide resolution, show it in the notebook, close."""
     fig.tight_layout()
     fig.savefig(path, dpi=200)
+    if get_ipython() is not None:   # inside a notebook: also draw the chart under the cell
+        display(fig)
     plt.close(fig)
 
 

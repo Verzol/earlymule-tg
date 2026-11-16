@@ -139,6 +139,8 @@ All project code (ground truth, features, LightGBM, metrics, tests) runs in the 
 | pyarrow | 25.0.0 |
 | scikit-learn | 1.9.1 |
 | LightGBM | 4.7.0 |
+| SHAP | 0.52.0 (added 2026-11-16 for the feature analysis; conda install did not change the other versions) |
+| SciPy | 1.18.1 |
 | PyYAML | 6.0.3 |
 | matplotlib | 3.11.2 |
 | JupyterLab | 4.6.5 |

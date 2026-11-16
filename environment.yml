@@ -11,7 +11,9 @@ dependencies:
   - pandas>=2.2
   - pyarrow>=15
   - scikit-learn>=1.4
+  - scipy>=1.11        # EDA statistics and clustering (also a scikit-learn dependency)
   - lightgbm>=4.3
+  - shap>=0.46         # TreeSHAP for the feature analysis (EMTG-70)
   - pyyaml>=6
   - matplotlib>=3.8
   - jupyterlab>=4

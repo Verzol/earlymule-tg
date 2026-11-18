@@ -1,0 +1,39 @@
+# Transfer-time scoring, the second task (EMTG-72). Run: python -m earlymule.models.transfer_lgbm --variant full [--seed N]
+# Rows: every outgoing transfer of a sender with 20 transfers by the end of the previous day
+# (python -m earlymule.features.transfer_time). Label: illicit outflow of a mule.
+base: lightgbm.yaml
+run_name: transfer_lgbm   # logged as transfer_lgbm_<variant>
+cooldown_days: 30          # a held account is not held again for 30 days, as end-of-day alerts
+hold_budgets: [10, 20, 50] # new accounts held per day; threshold chosen on validation
+headline_h: 10             # same review load as the 10 end-of-day alerts of the primary metric
+hot_share: 0.01            # risk propagation: senders in the top 1% of the day's account scores
+oof_scores: experiments/runs/oof_scores/8ec6f34             # out-of-fold train-day scores (Kaggle, seed 0)
+full_scores: experiments/runs/lgbm_abl_full/956b8a1/seed0   # validation and test-day scores, same export and sample
+# Calendar-growing totals stay out, as in the daily model
+exclude_features: [s_n_tx_hist, s_days_since_first_tx, r_n_tx_hist, r_days_since_first_tx]
+
+# Column -> group by regular expression; every feature must match exactly one group
+groups:
+  sender: ['^s_']
+  order: ['^amt', '^days_since_last_in$', '^tx_since_last_in$']
+  pair: ['^pair_', '^first_to_payee$', '^reverse_n_before$']
+  payee: ['^r_']
+  propagation: ['^hot_in_share_7d$']
+
+# Payee columns a bank does not see for a payee at another bank: the payee's own outflows, balance-driven
+# timing and its risk score. Inflow-side columns stay, since every sender in the simulator is a customer.
+external_payee_drop: ['^r_(n|amt|peers|new_peers|new_share)_out', '^r_out_in_ratio_', '^r_imbalance_', '^r_fwd_',
+                      '^r_dwell_', '^r_down_amt_out_', '^r_ent_out_', '^r_burst_', '^r_days_since_last_(out|tx)$',
+                      '^r_out_n_', '^r_risk$', '^r_n_out_7d_over', '^r_amt_out_7d_over', '^r_peers_out_7d_over']
+
+variants:
+  sender: {groups: [sender]}
+  order: {groups: [sender, order]}
+  pair: {groups: [sender, order, pair]}
+  payee: {groups: [sender, order, pair, payee]}
+  full: {groups: [sender, order, pair, payee, propagation]}
+  external_payee: {groups: [sender, order, pair, payee, propagation], drop: external_payee}
+  no_shortcuts: {groups: [sender, order, pair, payee, propagation], drop_columns: [amt, amt_over_in_since_last_out, amt_over_last_in, first_to_payee]}
+  no_churn: {groups: [sender, order, pair, payee, propagation], drop_patterns: ['^s_new_(peers|share)_']}
+  conservative: {groups: [sender, order, pair, payee, propagation], conservative: true}
+  wide_label: {groups: [sender, order, pair, payee, propagation], label: any_illicit}

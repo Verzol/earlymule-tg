@@ -190,6 +190,39 @@ def transfer_features(tx: pd.DataFrame, balance: np.ndarray, rows: np.ndarray, w
     return out
 
 
+def risk_features(keys: pd.DataFrame, tx: pd.DataFrame, scores: pd.DataFrame, hot_share: float = 0.01) -> pd.DataFrame:
+    """Payee risk score and risk propagation to the sender, both from daily account scores of day d - 1.
+
+    Args:
+        keys: seq, day, orig_acct, bene_acct of the scored transfers.
+        scores: acct_id, snapshot, score of the daily model; on train days out-of-fold (oof_scores), so a
+            score never comes from a model that saw the account's case.
+        hot_share: accounts in this top share of a day's scores count as high-risk senders.
+    Returns:
+        r_risk (payee's score at d - 1) and hot_in_share_7d (share of the sender's inflow over days d - 7 to
+        d - 1 that came from accounts high-risk at d - 1), aligned with keys.
+    """
+    # 1. Payee score of the previous day; NaN when the payee was not scored (fewer than 20 transfers)
+    s = scores.set_index(["acct_id", "snapshot"]).score
+    r_risk = s.reindex(pd.MultiIndex.from_arrays([keys.bene_acct, keys.day - 1])).to_numpy()
+
+    # 2. High-risk accounts per day: top share of that day's scores (ranks, since score scales differ
+    #    between the out-of-fold train days and the validation and test days)
+    rank = scores.groupby("snapshot").score.rank(ascending=False, pct=True)
+    hot = scores[rank.le(hot_share).to_numpy()].groupby("snapshot").acct_id.apply(set)
+
+    # 3. Per day d: inflow of each account over days d - 7 .. d - 1, and the part from high-risk senders
+    share = np.full(len(keys), np.nan)
+    days = tx.day.to_numpy()
+    for d, idx in keys.groupby("day").indices.items():
+        win = tx.iloc[np.searchsorted(days, d - 7):np.searchsorted(days, d)]
+        hot_d = hot.get(d - 1, set())
+        total = win.groupby("bene_acct").base_amt.sum()
+        from_hot = win[win.orig_acct.isin(hot_d)].groupby("bene_acct").base_amt.sum().reindex(total.index, fill_value=0)
+        share[idx] = (from_hot / total).reindex(keys.orig_acct.to_numpy()[idx]).to_numpy()
+    return pd.DataFrame({"r_risk": r_risk, "hot_in_share_7d": share}).astype("float32")
+
+
 def main() -> None:
     """Build and save the transfer features of the configured dataset."""
     parser = argparse.ArgumentParser()

@@ -1,6 +1,6 @@
-# Data Spec v0.3: AMLSim-Mule dataset `80K-earlymule-mule`
+# Data Spec v0.4: AMLSim-Mule dataset `80K-earlymule-mule`
 
-Version 0.3, 2026-11-10 (v0.2: 2026-11-09, v0.1: 2026-11-04). Describes the dataset used for every experiment from 2026-11-03 on, how mule labels are derived, which columns a model may use, and the known limitations. It is the reference for the weekly reports. Every number can be reproduced with the commands in section 11.
+Version 0.4, 2026-11-18 (v0.3: 2026-11-10, v0.2: 2026-11-09, v0.1: 2026-11-04). v0.4 adds the transfer-time features of the second task (section 7). Describes the dataset used for every experiment from 2026-11-03 on, how mule labels are derived, which columns a model may use, and the known limitations. It is the reference for the weekly reports. Every number can be reproduced with the commands in section 11.
 
 ## 1. Summary
 
@@ -113,6 +113,7 @@ Features at day t use only transfers dated on or before t. Illicit transfers are
 | Scored population | Regular accounts: at least 20 transfers up to day t. Results on all accounts are reported alongside |
 | Weekly scoring | Every 7 days; positive if the mule's onset falls in the last 7 days; earlier mules are left out |
 | Daily scoring (early detection) | Every day; positive while the mule is active (onset to completion); after completion a mule has no label but stays in the ranking; top K new alerts per day with a 30-day cooldown |
+| Transfer-time scoring (second task) | Every outgoing transfer of a regular sender, days 31–719, scored from transfers before it in execution order; positive if it is an illicit outflow of a mule; hold H new accounts a day with a 30-day cooldown (`docs/evaluation_protocol.md` section 10) |
 | Uncertainty | 3 seeds; 95% intervals by resampling whole cases |
 
 **Point-in-time features** (`src/earlymule/features/point_in_time.py`; every value uses transfers dated on or before day t only; "window" = (t − w, t] for w in 1, 7, 30). Families of the research plan (section 12.3) and their columns:
@@ -135,6 +136,19 @@ Features at day t use only transfers dated on or before t. Illicit transfers are
 
 Days are the finest unit AMLSim records, so the plan's sub-day dwell and forwarding horizons become same-day, 1-day and 3-day horizons. The burstiness, rapid-forward, dwell, two-hop and entropy families were added on 2026-11-13 (72 model features; the runs logged before that commit used the 42 features of the other families).
 
+**Transfer-time features** (`src/earlymule/features/transfer_time.py`; for a transfer x on day d, every value uses transfers strictly before x in the order (day, `seq`); the conservative variant cuts at the start of day d). 171 columns, plus two risk columns from daily scores:
+
+| Group | Columns | Definition |
+|---|---|---|
+| Sender, previous day | `s_<point-in-time feature>`, `s_initial_deposit` | The 72 point-in-time features of the sender at the end of day d − 1 |
+| Sender, earlier today | `s_in_amt_today`, `s_in_n_today`, `s_in_new_amt_today`, `s_out_n_today`, `s_out_amt_today` | Received, received from first-time senders, and sent on day d before x |
+| Order | `amt`, `amt_over_in_since_last_out`, `amt_over_last_in`, `amt_over_balance`, `amt_over_mean_out`, `amt_over_max_out`, `days_since_last_in`, `tx_since_last_in` | Amount of x and its ratio to what came in since the sender's last outflow, to its last inflow, to its balance just before x (`tx_log.csv` old balance), to its mean and largest earlier outflow; days and transfers since its last inflow |
+| Pair | `pair_n_before`, `pair_amt_before`, `first_to_payee`, `reverse_n_before` | Earlier transfers from the sender to the payee, and from the payee to the sender |
+| Payee | `r_<point-in-time feature>`, `r_in_n_before`, `r_out_n_before`, `r_in_n_today`, `r_in_amt_today`, `r_out_n_today` | The payee's 72 point-in-time features at the end of day d − 1, its transfer counts before x, and its activity on day d before x |
+| Risk | `r_risk`, `hot_in_share_7d` | The payee's daily LightGBM score of day d − 1 (out of fold on train days, `src/earlymule/models/oof_scores.py`); share of the sender's inflow over days d − 7 to d − 1 from accounts in the top 1% of day d − 1's scores |
+
+`s_n_tx_hist`, `s_days_since_first_tx`, `r_n_tx_hist` and `r_days_since_first_tx` are left out of the models, as in the daily model. Columns that lean on the simulator's regularities (new counterparties, amounts near 90% of a receipt, pass-through and rapid-forward) are left out together in the "no shortcuts" variant of `configs/transfer_scoring.yaml`.
+
 **Difficulty so far** (LightGBM, test, mean of 3 seeds, `experiments/experiments.csv`, commit `c62fa61`; early stopping on validation PR-AUC only, patience 1,000 rounds):
 - weekly, regular accounts: PR-AUC 0.78 ± 0.02 (random ranking: 0.0006), Recall@100 0.97;
 - daily, 10 new accounts alerted per day with a 30-day cooldown (`docs/evaluation_protocol.md`): 76% of mules alerted before their first forwarding (of those that leave a day for it), 96% by their completion day, 65% strictly before it; 30% of alerts land on sources, exits and one-sided hubs of cases. Over all accounts the same budget catches 63% before forwarding.
@@ -156,7 +170,7 @@ Weekly scoring is close to its ceiling; daily scoring is where early-detection m
 
 1. **Activity shortcut.** Case members are drawn from accounts with regular activity, while most accounts barely transact. Counting normal transfers alone separates mules with ROC-AUC 0.92 over all accounts, but only 0.51 over regular accounts (single-column screening, `reports/difficulty_check.md`); this is why the regular population is the main one. The cause is member selection, not hubs: inside the regular population mules have the same median activity as other accounts (111–114 against 110 normal transfers).
 2. **Initial balance follows activity** because of change 5 (ROC-AUC 0.64 over all accounts, 0.50 over regular accounts).
-3. **Normal behaviour is very regular.** Normal models pay fixed counterparties on fixed schedules, so "new counterparty" features are strong: 99% of mules meet a new counterparty in the week they start, against 10% of regular accounts. Real customers pay new people more often, so the task is likely easier than in practice.
+3. **Normal behaviour is very regular.** Normal models pay fixed counterparties on fixed schedules, so "new counterparty" features are strong: 99% of mules meet a new counterparty in the week they start, against 10% of regular accounts. Real customers pay new people more often, so the task is likely easier than in practice. The same regularity sets the level of the transfer-time task: with every shortcut column removed, the timing of a transfer against the account's schedule still catches 98.5% of mules before their first outflow (`docs/evaluation_protocol.md` section 10).
 4. **Mule behaviour is clean.** Mules forward exactly 90% (2 of 621 forward less, because a normal transfer took most of their balance), and illicit amounts are smaller than normal ones (median 156 against 550).
 5. **Same-day activity.** 174 mules start and finish on one day; scored at the end of the day they cannot be caught before completion. Timestamps carry no time of day, but the execution order within a day is known: `tx_log.csv` lists transfers in the order the simulator ran them, and each transfer's old balance equals the new balance of the account's previous transfer in that order for all 3,546,910 consecutive pairs, 954,012 of them on the same day (`python -m earlymule.data.intraday_order`, 2026-11-15). `tran_id` is that row number (the 10K run drops one duplicated log row, tran_id 49053). End-of-day scoring does not use the order, so no reported number changes; scoring a transfer before it is executed can.
 6. **One case per mule.** No account is reused across cases, so recruitment and repeated use over weeks are not represented.

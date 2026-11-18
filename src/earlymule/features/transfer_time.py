@@ -164,8 +164,10 @@ def daily_context(tx: pd.DataFrame, rows: np.ndarray, windows: tuple[int, ...],
     """Sender (s_) and payee (r_) point-in-time features at the end of day d - 1, one row per entry of rows."""
     sel = tx.iloc[rows][["orig_acct", "bene_acct", "day"]].reset_index(drop=True)
     first_day = pair_first_day(tx) if first_day is None else first_day
-    parts = []
-    for d, grp in sel.groupby("day", sort=True):
+    parts, start = [], time.time()
+    for i, (d, grp) in enumerate(sel.groupby("day", sort=True)):
+        if i % 100 == 0:
+            print(f"daily context: day {d}, {time.time() - start:.0f} s", flush=True)
         # snapshot_features reads transfers up to day d - 1 only
         ids = pd.Index(np.unique(np.r_[grp.orig_acct.to_numpy(), grp.bene_acct.to_numpy()]))
         f = snapshot_features(tx, ids, int(d) - 1, windows, first_day)

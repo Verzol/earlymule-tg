@@ -33,7 +33,13 @@ variants:
   payee: {groups: [sender, order, pair, payee]}
   full: {groups: [sender, order, pair, payee, propagation]}
   external_payee: {groups: [sender, order, pair, payee, propagation], drop: external_payee}
+  # Drops 4 columns only; pair_n_before = 0 still says "first payment to this payee" (2026-11-18), see the two below
   no_shortcuts: {groups: [sender, order, pair, payee, propagation], drop_columns: [amt, amt_over_in_since_last_out, amt_over_last_in, first_to_payee]}
+  # New counterparties on every side: the pair history and the new-partner columns of sender and payee
+  no_new_counterparty: {groups: [sender, order, payee, propagation], drop_patterns: ['^(s|r)_new_(peers|share)_', '^s_in_new_amt_today$']}
+  # Every simulator regularity at once: new counterparties, every amount and amount ratio (mules forward about
+  # 90% of what they receive), and pass-through and rapid-forward of sender and payee
+  no_shortcuts_strict: {groups: [sender, order, payee, propagation], drop_patterns: ['^(s|r)_new_(peers|share)_', '^s_in_new_amt_today$', '^amt', '^(s|r)_out_in_ratio_', '^(s|r)_fwd_']}
   no_churn: {groups: [sender, order, pair, payee, propagation], drop_patterns: ['^s_new_(peers|share)_']}
   conservative: {groups: [sender, order, pair, payee, propagation], conservative: true}
   wide_label: {groups: [sender, order, pair, payee, propagation], label: any_illicit}

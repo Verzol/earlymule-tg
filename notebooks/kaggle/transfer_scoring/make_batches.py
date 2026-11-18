@@ -6,6 +6,7 @@ the template notebook with its own parameter cell and a kernel-metadata.json (id
 verzol/earlymule-transfer-<k>, CPU, the transfer-task dataset as input).
 Writes notebooks/kaggle/transfer_scoring/batches/<k>/ (git-ignored).
 Run: python notebooks/kaggle/transfer_scoring/make_batches.py --commit <sha> [--batches 4] [--seeds 0 1 2]
+     [--variants a b] [--first-id 5]   (follow-up runs: only these variants, new kernel ids)
 Push: kaggle kernels push -p notebooks/kaggle/transfer_scoring/batches/<k>
 """
 
@@ -26,18 +27,20 @@ def main() -> None:
     parser.add_argument("--commit", required=True, help="commit the notebooks check out (pushed to GitHub)")
     parser.add_argument("--batches", type=int, default=4)
     parser.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2])
+    parser.add_argument("--variants", nargs="*", help="default: every variant of the config")
+    parser.add_argument("--first-id", type=int, default=1, help="number of the first kernel id")
     args = parser.parse_args()
 
     # 1. Jobs seed-major, dealt round-robin, so the seeds of one variant land in different batches
     cfg = yaml.safe_load((HERE.parents[2] / "configs" / "transfer_scoring.yaml").read_text(encoding="utf-8"))
-    jobs = [(v, s) for s in args.seeds for v in cfg["variants"]]
+    jobs = [(v, s) for s in args.seeds for v in (args.variants or cfg["variants"])]
     batches = [jobs[k::args.batches] for k in range(args.batches)]
     template = json.loads((HERE / "transfer_scoring.ipynb").read_text(encoding="utf-8"))
     param_cell = next(i for i, c in enumerate(template["cells"]) if c.get("id") == "cell-params")
     header = template["cells"][param_cell]["source"][0]
 
     # 2. One folder per batch: notebook with its jobs, and CPU kernel metadata
-    for k, batch in enumerate(batches, start=1):
+    for k, batch in enumerate(batches, start=args.first_id):
         folder = HERE / "batches" / str(k)
         folder.mkdir(parents=True, exist_ok=True)
         nb = json.loads(json.dumps(template))

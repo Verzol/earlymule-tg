@@ -6,7 +6,7 @@ bootstrap: variants against the full set at the same budget; holds of H accounts
 alerts of K = H, on the mules both tables cover; holds and end-of-day alerts together (H = K = 10) against
 end-of-day K = 20, the same review load.
 Writes reports/figures/transfer/summary.csv and comparisons.csv.
-Run: python -m earlymule.analysis.transfer_summary --runs <folder with transfer_lgbm_*/seed*/> [--commit d6128f0]
+Run: python -m earlymule.analysis.transfer_summary --runs <folders with transfer_lgbm_*/seed*/> [--commit d6128f0 5e00cd3]
 """
 
 from __future__ import annotations
@@ -22,16 +22,16 @@ from earlymule.evaluation.uncertainty import paired_bootstrap_difference
 from earlymule.experiment_log import read_log, run_folder
 
 SEEDS = (0, 1, 2)
-VARIANTS = ["sender", "order", "pair", "payee", "full", "external_payee", "no_shortcuts", "no_churn",
-            "conservative", "wide_label"]
+VARIANTS = ["sender", "order", "pair", "payee", "full", "external_payee", "no_shortcuts", "no_new_counterparty",
+            "no_shortcuts_strict", "no_churn", "conservative", "wide_label"]
 DAILY = ("lightgbm_daily", "7bfcfb4")
 
 
-def summary(log: pd.DataFrame, commit: str) -> pd.DataFrame:
+def summary(log: pd.DataFrame, commits: list[str]) -> pd.DataFrame:
     """Mean and sd over seeds of the main metrics of every variant."""
     rows = []
     for v in VARIANTS:
-        runs = log[(log.run_name == f"transfer_lgbm_{v}") & (log.commit == commit)].drop_duplicates("seed", keep="last")
+        runs = log[(log.run_name == f"transfer_lgbm_{v}") & log.commit.isin(commits)].drop_duplicates("seed", keep="last")
         for _, r in runs.iterrows():
             m = r.metrics if isinstance(r.metrics, dict) else json.loads(r.metrics)  # read_log parses JSON
             row = {"variant": v, "seed": r.seed, "val_pr_auc": m["val_pr_auc"], "test_pr_auc": m["test_pr_auc"],
@@ -50,9 +50,10 @@ def summary(log: pd.DataFrame, commit: str) -> pd.DataFrame:
     return agg.reindex(VARIANTS).round(4)
 
 
-def _holds(runs: Path, variant: str, seed: int, h: int) -> pd.DataFrame:
-    """Per-mule hold table on test of one run."""
-    return pd.read_parquet(runs / f"transfer_lgbm_{variant}" / f"seed{seed}" / f"holds_test_h{h}.parquet")
+def _holds(runs: list[Path], variant: str, seed: int, h: int) -> pd.DataFrame:
+    """Per-mule hold table on test of one run, from whichever runs folder holds it."""
+    path = next(p for r in runs if (p := r / f"transfer_lgbm_{variant}" / f"seed{seed}" / f"holds_test_h{h}.parquet").exists())
+    return pd.read_parquet(path)
 
 
 def _daily(seed: int, k: int) -> pd.DataFrame:
@@ -61,7 +62,7 @@ def _daily(seed: int, k: int) -> pd.DataFrame:
     return t[t.k.eq(k)]
 
 
-def comparisons(runs: Path, n: int) -> pd.DataFrame:
+def comparisons(runs: list[Path], n: int) -> pd.DataFrame:
     """Paired case-bootstrap differences per seed (points of the share of mules caught before forwarding)."""
     out = []
 
@@ -96,15 +97,15 @@ def comparisons(runs: Path, n: int) -> pd.DataFrame:
 def main() -> None:
     """Write the summary and comparison tables."""
     parser = argparse.ArgumentParser()
-    parser.add_argument("--runs", required=True, help="folder holding transfer_lgbm_<variant>/seed<N>/")
-    parser.add_argument("--commit", default="d6128f0")
+    parser.add_argument("--runs", nargs="+", required=True, help="folders holding transfer_lgbm_<variant>/seed<N>/")
+    parser.add_argument("--commit", nargs="+", default=["d6128f0", "5e00cd3"])
     parser.add_argument("--n", type=int, default=1000, help="bootstrap resamples")
     args = parser.parse_args()
     out = repo_root() / "reports" / "figures" / "transfer"
     out.mkdir(parents=True, exist_ok=True)
     s = summary(read_log(), args.commit)
     s.to_csv(out / "summary.csv")
-    c = comparisons(Path(args.runs), args.n)
+    c = comparisons([Path(r) for r in args.runs], args.n)
     c.to_csv(out / "comparisons.csv", index=False)
     pd.set_option("display.width", 200)
     print(s[[c for c in s.columns if c.startswith(("h10_caught", "val_pr_auc_mean", "test_pr_auc_mean", "h10_false_per_1000_mean"))]])

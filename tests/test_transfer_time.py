@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from earlymule.features.transfer_time import order_features, transfer_features
+from earlymule.features.transfer_time import order_features, risk_features, transfer_features
 
 
 def tx(rows):
@@ -78,3 +78,14 @@ def test_matches_brute_force():
         since = before.loc[(before.index > (sent.max() if len(sent) else -1)) & (before.bene_acct == s), "base_amt"].sum()
         expected = x.base_amt / since if since > 0 else np.nan
         assert f.amt_over_in_since_last_out[p] == pytest.approx(expected, nan_ok=True, rel=1e-5)
+
+
+def test_risk_features_use_scores_of_the_previous_day():
+    """Payee score is the day d - 1 score; propagation counts inflow of days d - 7 .. d - 1 from top senders of d - 1."""
+    t = tx([(7, 1, 30.0, 2), (8, 1, 70.0, 3), (7, 1, 999.0, 5), (1, 5, 10.0, 5)])
+    keys = t[t.seq == 4][["seq", "day", "orig_acct", "bene_acct"]]
+    scores = pd.DataFrame({"acct_id": [5, 5, 7, 8] + list(range(100, 300)), "snapshot": [4, 5, 4, 4] + [4] * 200,
+                           "score": [2.0, 9.0, 50.0, -1.0] + [0.0] * 200})
+    f = risk_features(keys, t, scores, hot_share=0.01).iloc[0]
+    # Payee 5 scored 2.0 on day 4 (its day-5 score is not used); sender 7 is the top 1% of day 4 (1 of 203)
+    assert f.r_risk == 2.0 and f.hot_in_share_7d == pytest.approx(30 / 100)

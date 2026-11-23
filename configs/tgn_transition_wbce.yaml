@@ -1,0 +1,8 @@
+# Role-transition step with a class-weighted account loss: the same 1% negative sample, positives weighted by
+# kept negatives per positive, so both classes carry equal total weight. Compared with tgn_transition (sampling
+# alone) and tgn_transition_focal; the choice is made on mean validation PR-AUC.
+# Run: python -m earlymule.models.tgn --data <export folder> --config tgn_transition_wbce.yaml [--seed N]
+base: tgn_transition.yaml
+run_name: tgn_transition_wbce
+account_loss: weighted_bce
+pos_weight: balanced       # resolved from train rows before training; the number is kept in run_meta

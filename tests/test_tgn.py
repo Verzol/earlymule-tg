@@ -7,8 +7,9 @@ import pytest
 torch = pytest.importorskip("torch")
 pytest.importorskip("torch_geometric")
 
-from earlymule.models.tgn import (FeatureScaler, NeighborBuffer, Stream, TGNAccount, load_rows,  # noqa: E402
-                                  rows_by_day, sample_negatives, score_pass, train_epoch)
+from earlymule.models.tgn import (FeatureScaler, NeighborBuffer, Stream, TGNAccount, account_loss,  # noqa: E402
+                                  balanced_pos_weight, focal_loss, load_rows, rows_by_day, sample_negatives,
+                                  score_pass, train_epoch)
 
 NODES = 8  # node 7 never transfers
 
@@ -287,3 +288,35 @@ def test_temporal_transition_reads_the_lagged_role(tmp_path):
     lag.to_parquet(tmp_path / "features_lag7_test.parquet")
     with pytest.raises(ValueError):
         load_rows(tmp_path, "test", sc, "cpu", lag=7)
+
+
+def test_account_losses_reduce_to_bce():
+    """Focal with gamma 0 and no alpha, and weighted BCE with weight 1, equal plain BCE; focal shrinks easy rows."""
+    logits, y = torch.tensor([3.0, -2.0, 0.5, -4.0]), torch.tensor([1.0, 0.0, 0.0, 1.0])
+    bce = account_loss({}, "cpu")(logits, y)
+    assert torch.isclose(focal_loss(logits, y, 0.0, None), bce)
+    assert torch.isclose(account_loss({"account_loss": "weighted_bce", "pos_weight": 1.0}, "cpu")(logits, y), bce)
+    assert focal_loss(logits, y, 2.0, None) < bce
+    with pytest.raises(ValueError):
+        account_loss({"account_loss": "hinge"}, "cpu")
+
+
+def test_balanced_pos_weight_counts_kept_negatives():
+    """3 positives and 600 negatives at a 1% rate keep 6 negatives, so each positive weighs 2."""
+    rows = pd.DataFrame({"acct_id": range(603), "snapshot": np.repeat([0, 1, 2], 201), "node": range(603),
+                         "label": [1.0] + [0.0] * 200 + [1.0] + [0.0] * 200 + [1.0] + [0.0] * 200})
+    assert balanced_pos_weight(rows_by_day(rows, "cpu"), 0.01) == pytest.approx(2.0)
+
+
+@pytest.mark.parametrize("cfg", [{"account_loss": "weighted_bce", "pos_weight": 5.0},
+                                 {"account_loss": "focal", "focal_gamma": 2.0, "focal_alpha": 0.25}])
+def test_train_epoch_with_other_account_losses_gives_finite_loss(cfg):
+    """Weighted BCE and focal loss train one pass with a finite loss."""
+    m = model()
+    rows = pd.DataFrame({"acct_id": [1, 2, 3] * 4, "snapshot": np.repeat([2, 3, 4, 5], 3), "node": [1, 2, 3] * 4,
+                         "label": [1.0, 0.0, 0.0] * 4})
+    opt = torch.optim.Adam(m.parameters(), lr=1e-3)
+    loss = train_epoch(m, Stream(events(), 8, "cpu"), rows_by_day(rows, "cpu"), 8,
+                       {"link_weight": 1.0, "train_negative_rate": 1.0, **cfg}, opt,
+                       np.random.default_rng(0), torch.Generator().manual_seed(0))
+    assert np.isfinite(loss) and loss > 0

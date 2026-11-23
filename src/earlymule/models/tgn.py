@@ -8,6 +8,7 @@ With account_features in the config, the account head also reads the LightGBM fe
 (features_<split>.parquet of the export), which separates what the graph memory adds from what the features carry.
 With use_graph: false the memory, attention and link loss are left out and the same head is trained on the
 features alone, as the control for that comparison.
+account_loss in the config picks the account head's loss on the sampled rows: bce, weighted_bce or focal.
 Run: python -m earlymule.models.tgn --data <export folder> [--config tgn.yaml] [--seed N] [--out DIR] [--max-epochs N]
      [--lr X]
 Writes scores_val.parquet, scores_test.parquet (acct_id, snapshot, score) and run_meta.json to --out
@@ -26,6 +27,7 @@ import numpy as np
 import pandas as pd
 import torch
 from sklearn.metrics import average_precision_score
+import torch.nn.functional as F
 from torch.nn import BCEWithLogitsLoss, Linear
 from torch_geometric.nn import TGNMemory, TransformerConv
 from torch_geometric.nn.models.tgn import IdentityMessage, LastNeighborLoader, MeanAggregator
@@ -369,12 +371,41 @@ def load_rows(data: Path, split: str, scaler: FeatureScaler | None, device, lag:
     return rows_by_day(rows, device, np.concatenate(parts, axis=1))
 
 
+def focal_loss(logits: torch.Tensor, y: torch.Tensor, gamma: float, alpha: float | None) -> torch.Tensor:
+    """Mean sigmoid focal loss (Lin et al., 2017); alpha weights positives, None means no class weight."""
+    bce = F.binary_cross_entropy_with_logits(logits, y, reduction="none")
+    loss = (1 - torch.exp(-bce)) ** gamma * bce
+    if alpha is not None:
+        loss = loss * (alpha * y + (1 - alpha) * (1 - y))
+    return loss.mean()
+
+
+def balanced_pos_weight(train_rows: dict, negative_rate: float) -> float:
+    """Kept negatives per positive in one epoch: negative_rate × train negatives / train positives."""
+    labels = np.concatenate([r[1] for r in train_rows.values()])
+    return float(negative_rate * (labels == 0).sum() / (labels == 1).sum())
+
+
+def account_loss(cfg: dict, device):
+    """Loss of the account head from cfg account_loss: bce (default), weighted_bce or focal; all on logits."""
+    kind = cfg.get("account_loss", "bce")
+    if kind == "bce":
+        return BCEWithLogitsLoss()
+    if kind == "weighted_bce":
+        return BCEWithLogitsLoss(pos_weight=torch.tensor(float(cfg["pos_weight"]), device=device))
+    if kind == "focal":
+        return lambda logits, y: focal_loss(logits, y, cfg.get("focal_gamma", 2.0), cfg.get("focal_alpha", 0.25))
+    raise ValueError(f"unknown account_loss {kind!r}")
+
+
 def train_epoch(model, stream: Stream, train_rows: dict, last_day: int, cfg: dict, opt, rng, gen) -> float:
     """One training pass over days 0..last_day; returns the mean loss per day."""
     model.train()
     model.reset()
     seen = torch.zeros(model.deposit.numel(), dtype=torch.bool, device=model.deposit.device)
+    # The link loss stays plain BCE; only the account head's loss follows the config
     loss_fn, total, steps = BCEWithLogitsLoss(), 0.0, 0
+    acct_loss_fn = account_loss(cfg, seen.device)
     for d in range(last_day + 1):
         rows = stream.day(d)
         src, dst = stream.src[rows], stream.dst[rows]
@@ -395,7 +426,7 @@ def train_epoch(model, stream: Stream, train_rows: dict, last_day: int, cfg: dic
             if keep.any():
                 y = torch.as_tensor(label[keep], dtype=torch.float, device=nodes.device)
                 k = torch.as_tensor(keep, device=nodes.device)
-                loss = loss + loss_fn(model.score(nodes[k], stream, None if x is None else x[k]), y)
+                loss = loss + acct_loss_fn(model.score(nodes[k], stream, None if x is None else x[k]), y)
         if loss.requires_grad:
             opt.zero_grad()
             loss.backward()
@@ -480,6 +511,9 @@ def main() -> None:
     # Temporal role transition reads the features of each row's account `transition_lag_days` earlier as well
     lag = cfg.get("transition_lag_days", 0)
     train_rows = load_rows(data, "train", scaler, device, lag)
+    # Resolved before training so run_meta records the number used
+    if cfg.get("pos_weight") == "balanced":
+        cfg["pos_weight"] = round(balanced_pos_weight(train_rows, cfg["train_negative_rate"]), 3)
     val_rows = load_rows(data, "val", scaler, device, lag)
 
     # 2. Train; keep the parameters of the epoch with the best validation PR-AUC

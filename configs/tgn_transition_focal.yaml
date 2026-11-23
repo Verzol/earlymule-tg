@@ -1,0 +1,9 @@
+# Role-transition step with focal loss on the account head (same 1% negative sample): easy rows are down-weighted
+# so training concentrates on hard negatives and missed mules. gamma and alpha are the defaults of Lin et al. (2017).
+# Compared with tgn_transition and tgn_transition_wbce on mean validation PR-AUC.
+# Run: python -m earlymule.models.tgn --data <export folder> --config tgn_transition_focal.yaml [--seed N]
+base: tgn_transition.yaml
+run_name: tgn_transition_focal
+account_loss: focal
+focal_gamma: 2.0
+focal_alpha: 0.25

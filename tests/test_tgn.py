@@ -320,3 +320,15 @@ def test_train_epoch_with_other_account_losses_gives_finite_loss(cfg):
                        {"link_weight": 1.0, "train_negative_rate": 1.0, **cfg}, opt,
                        np.random.default_rng(0), torch.Generator().manual_seed(0))
     assert np.isfinite(loss) and loss > 0
+
+
+def test_dropped_labels_stay_out_of_the_loss():
+    """Rows with a NaN label (mules left out under label scarcity) are never trained on; the loss stays finite."""
+    m = model()
+    rows = pd.DataFrame({"acct_id": [1, 2, 3] * 4, "snapshot": np.repeat([2, 3, 4, 5], 3), "node": [1, 2, 3] * 4,
+                         "label": [np.nan, 0.0, 0.0] * 4})
+    opt = torch.optim.Adam(m.parameters(), lr=1e-3)
+    loss = train_epoch(m, Stream(events(), 8, "cpu"), rows_by_day(rows, "cpu"), 8,
+                       {"link_weight": 0.0, "train_negative_rate": 1.0}, opt,
+                       np.random.default_rng(0), torch.Generator().manual_seed(0))
+    assert np.isfinite(loss)

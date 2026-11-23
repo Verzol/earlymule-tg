@@ -7,7 +7,10 @@ features the ablation keeps, as listed in configs/lightgbm_ablation.yaml.
 Writes scores_val.parquet, scores_test.parquet (acct_id, snapshot, score), importance.csv, model.txt and
 run_meta.json to --out; test rows carry no labels, so evaluation runs locally with
 python -m earlymule.evaluation.import_scores --from <out>.
+With --label-fraction F and --label-cases <csv> (python -m earlymule.data.label_fraction), only the training mules
+of a seeded share F of cases keep their label; the others become negatives or, with --unlabeled drop, leave training.
 Run: python -m earlymule.models.lightgbm_export --data <export folder> --ablation no_churn [--seed N] [--out DIR]
+     [--label-fraction F --label-cases CSV [--unlabeled negative|drop]]
 """
 
 from __future__ import annotations
@@ -23,6 +26,7 @@ import numpy as np
 import pandas as pd
 
 from earlymule.config import load_paths
+from earlymule.data.label_fraction import kept_mules, relabel
 from earlymule.experiment_log import git_state, run_dir, set_seed
 from earlymule.models.tabular import fit, load_config
 
@@ -91,7 +95,12 @@ def main() -> None:
     parser.add_argument("--config", default="lightgbm_ablation.yaml")
     parser.add_argument("--seed", type=int)
     parser.add_argument("--out", help="output folder; default experiments/runs/<run_name>/<commit>/seed<N>")
+    parser.add_argument("--label-fraction", type=float, help="share of training cases that keep their mule labels")
+    parser.add_argument("--label-cases", help="case map of the training mules (acct_id, alert_id)")
+    parser.add_argument("--unlabeled", default="negative", choices=["negative", "drop"])
     args = parser.parse_args()
+    if (args.label_fraction is None) != (args.label_cases is None):
+        parser.error("--label-fraction and --label-cases go together")
     cfg = load_config(args.config)
     cfg["seed"] = cfg["seed"] if args.seed is None else args.seed
     set_seed(cfg["seed"])
@@ -100,10 +109,18 @@ def main() -> None:
 
     # 1. Train rows: labelled regular account-days, every positive and 1% of negatives for this seed
     deposit = pd.read_parquet(data / "nodes.parquet").set_index("acct_id").initial_deposit
-    train_label = pd.read_parquet(data / "rows_train.parquet", columns=["label"]).label
-    mask = train_mask(train_label, cfg["train_negative_rate"], np.random.default_rng(cfg["seed"]))
+    train_rows = pd.read_parquet(data / "rows_train.parquet", columns=["acct_id", "label"])
+    train_label, n_mules = train_rows.label, int(train_rows.acct_id[train_rows.label == 1].nunique())
+    if args.label_fraction is not None:
+        kept = kept_mules(pd.read_csv(args.label_cases), args.label_fraction, cfg["seed"])
+        train_label = pd.Series(relabel(train_label.to_numpy(), train_rows.acct_id.to_numpy(), kept, args.unlabeled))
+        n_mules = len(kept)
+    # Same random draw as the full-label run of the seed, so the sample of true negatives is the same;
+    # dropped mule rows (NaN) are never kept
+    mask = train_mask(train_label, cfg["train_negative_rate"], np.random.default_rng(cfg["seed"])) & train_label.notna().to_numpy()
     frames = {"train": load_split(data, "train", deposit, mask),
               "val": load_split(data, "val", deposit), "test": load_split(data, "test", deposit)}
+    frames["train"]["label"] = train_label[mask].to_numpy()
 
     # 2. Features the ablation keeps; the export already leaves out n_tx_hist and days_since_first_tx
     columns = [c for c in frames["train"].columns if c not in (*KEYS, "label")]
@@ -117,7 +134,8 @@ def main() -> None:
     # 4. Scores, importance and model file; evaluation runs locally on these files (import_scores)
     commit, dirty = git_state()
     dataset = manifest["dataset"]
-    run_name = f"{cfg['run_name']}_{args.ablation}" + ("" if dataset == load_paths().dataset else f"_{dataset}")
+    suffix = "" if args.label_fraction is None else f"_lf{args.label_fraction:g}" + ("_drop" if args.unlabeled == "drop" else "")
+    run_name = f"{cfg['run_name']}_{args.ablation}{suffix}" + ("" if dataset == load_paths().dataset else f"_{dataset}")
     out = Path(args.out) if args.out else run_dir(run_name, cfg["seed"])
     out.mkdir(parents=True, exist_ok=True)
     for s in ["val", "test"]:
@@ -129,7 +147,8 @@ def main() -> None:
     meta = {"run_name": run_name, "dataset": dataset, "export_commit": manifest["commit"], "commit": commit,
             "dirty": dirty, "seed": cfg["seed"], "ablation": args.ablation, "features": features,
             "config": {k: v for k, v in cfg.items() if k not in ("families", "windows_patterns", "ablations")}
-            | {"ablation": args.ablation, "dropped": cfg["ablations"][args.ablation]},
+            | {"ablation": args.ablation, "dropped": cfg["ablations"][args.ablation],
+               "label_fraction": args.label_fraction or 1.0, "unlabeled": args.unlabeled, "labelled_mules": n_mules},
             "device": "cpu", "lightgbm_version": lgb.__version__, "train_rows": int(mask.sum()),
             "best_iteration": int(model.best_iteration_), "best_val_pr_auc": round(model.best_score_["valid_0"]["average_precision"], 4),
             "epochs": None, "seconds": round(time.time() - start, 1)}

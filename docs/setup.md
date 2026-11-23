@@ -260,3 +260,9 @@ Smoke run on `10K-earlymule-mule`, laptop RTX 4050, 3 epochs (2026-11-13): 3.2 s
 CPU notebooks do not count against the weekly GPU quota. `python notebooks/kaggle/lgbm_ablation/make_batches.py --commit <sha>` writes one notebook folder per 6 runs to `notebooks/kaggle/lgbm_ablation/batches/<k>/` (git-ignored; batch 1 holds `full` and `no_churn`); push each with `kaggle kernels push -p notebooks/kaggle/lgbm_ablation/batches/<k>` and download with `kaggle kernels output verzol/earlymule-lgbm-abl-<k> -p <folder>`. Each run writes its folder as soon as it ends, so a session stopped at 12 hours keeps the finished runs.
 
 Smoke run on `10K-earlymule-mule`, WSL, `no_shortcuts`, seed 0 (2026-11-15): 51 features, best iteration 366, 17 s, peak 1.1 GB; `import_scores --no-log` evaluates it.
+
+### 4.7. Label scarcity on Kaggle
+
+Research plan section 19. `python -m earlymule.data.label_fraction --export <export folder> --out <csv>` writes the case map of the training mules (acct_id, alert_id; 449 mules in 221 cases on `80K-earlymule-mule`), uploaded as the private dataset `verzol/earlymule-80k-label-cases`. `lightgbm_export` and `tgn` take `--label-fraction F --label-cases <csv> [--unlabeled negative|drop]`: cases are shuffled once per seed and the first max(1, round(F × cases)) keep their mule labels, so the sets are nested across fractions; the other training mules become negatives (default) or leave the loss. Runs are named `<run>_lf<F>[_drop]`.
+
+LightGBM runs on Kaggle CPU: `python notebooks/kaggle/label_fraction/make_batches.py --commit <sha>` writes one notebook folder per 6 runs to `notebooks/kaggle/label_fraction/batches/<k>/` (git-ignored); push with `kaggle kernels push -p <folder>`, download with `kaggle kernels output verzol/earlymule-lgbm-lf-<k> -p <folder>`, evaluate with `import_scores`. Compare each fraction with `lgbm_abl_full` of the same commit family, which has the same negative sample per seed.

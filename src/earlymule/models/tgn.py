@@ -9,8 +9,10 @@ With account_features in the config, the account head also reads the LightGBM fe
 With use_graph: false the memory, attention and link loss are left out and the same head is trained on the
 features alone, as the control for that comparison.
 account_loss in the config picks the account head's loss on the sampled rows: bce, weighted_bce or focal.
+--label-fraction F with --label-cases CSV keeps the mule labels of a seeded share F of training cases
+(earlymule.data.label_fraction); the other training mules become negatives or, with --unlabeled drop, leave the loss.
 Run: python -m earlymule.models.tgn --data <export folder> [--config tgn.yaml] [--seed N] [--out DIR] [--max-epochs N]
-     [--lr X]
+     [--lr X] [--label-fraction F --label-cases CSV [--unlabeled negative|drop]]
 Writes scores_val.parquet, scores_test.parquet (acct_id, snapshot, score) and run_meta.json to --out
 (default experiments/runs/<run_name>[_<dataset>]/<commit>/seed<N>/).
 """
@@ -33,6 +35,7 @@ from torch_geometric.nn import TGNMemory, TransformerConv
 from torch_geometric.nn.models.tgn import IdentityMessage, LastNeighborLoader, MeanAggregator
 
 from earlymule.config import load_paths
+from earlymule.data.label_fraction import kept_mules, relabel
 from earlymule.experiment_log import git_state, run_dir, set_seed
 from earlymule.models.tabular import load_config
 
@@ -422,7 +425,8 @@ def train_epoch(model, stream: Stream, train_rows: dict, last_day: int, cfg: dic
         # 3. Account loss at the end of the day: all mules, a share of the others
         if d in train_rows:
             nodes, label, _, x = train_rows[d]
-            keep = (label == 1) | (rng.random(len(label)) < cfg["train_negative_rate"])
+            # NaN labels (mules left out under label scarcity) are never kept; the draw is the same either way
+            keep = ((label == 1) | (rng.random(len(label)) < cfg["train_negative_rate"])) & ~np.isnan(label)
             if keep.any():
                 y = torch.as_tensor(label[keep], dtype=torch.float, device=nodes.device)
                 k = torch.as_tensor(keep, device=nodes.device)
@@ -484,6 +488,9 @@ def main() -> None:
     parser.add_argument("--max-epochs", type=int)
     parser.add_argument("--lr", type=float, help="learning rate for a sweep; the run is logged as <run_name>_lr<X>")
     parser.add_argument("--out")
+    parser.add_argument("--label-fraction", type=float, help="share of training cases that keep their mule labels")
+    parser.add_argument("--label-cases", help="case map of the training mules (acct_id, alert_id)")
+    parser.add_argument("--unlabeled", default="negative", choices=["negative", "drop"])
     args = parser.parse_args()
     cfg = load_config(args.config)
     cfg["seed"] = cfg["seed"] if args.seed is None else args.seed
@@ -511,6 +518,12 @@ def main() -> None:
     # Temporal role transition reads the features of each row's account `transition_lag_days` earlier as well
     lag = cfg.get("transition_lag_days", 0)
     train_rows = load_rows(data, "train", scaler, device, lag)
+    if args.label_fraction is not None:
+        kept = kept_mules(pd.read_csv(args.label_cases), args.label_fraction, cfg["seed"])
+        train_rows = {d: (n, relabel(lab, acct, kept, args.unlabeled), acct, x)
+                      for d, (n, lab, acct, x) in train_rows.items()}
+        cfg |= {"label_fraction": args.label_fraction, "unlabeled": args.unlabeled, "labelled_mules": len(kept)}
+        cfg["run_name"] += f"_lf{args.label_fraction:g}" + ("_drop" if args.unlabeled == "drop" else "")
     # Resolved before training so run_meta records the number used
     if cfg.get("pos_weight") == "balanced":
         cfg["pos_weight"] = round(balanced_pos_weight(train_rows, cfg["train_negative_rate"]), 3)

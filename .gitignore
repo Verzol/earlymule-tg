@@ -42,6 +42,7 @@ kaggle.json
 # Generated Kaggle notebook folders of the LightGBM ablation (make_batches.py)
 notebooks/kaggle/lgbm_ablation/batches/
 notebooks/kaggle/transfer_scoring/batches/
+notebooks/kaggle/label_fraction/batches/
 
 # External personal skills checkout; never stage or commit in this repository
 /verzol-ai-skills/

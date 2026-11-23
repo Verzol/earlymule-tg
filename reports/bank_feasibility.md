@@ -7,7 +7,7 @@
 A mule's first outgoing transfer passes through these steps in a mobile or internet banking app:
 
 1. The account holder enters the payee account, amount and reference.
-2. The payer authenticates; in Vietnam, biometrically above 10 million VND per transfer or 20 million VND per day (Decision 2345/QĐ-NHNN, in force 1 July 2024) (secondary).
+2. The payer authenticates; in Vietnam, biometrically above 10 million VND per transfer or above 20 million VND cumulative per day under Circular 50/2024/TT-NHNN (Art. 10 and Appendices 01–02, in force 1 January 2025, which codified and replaced Decision 2345/QĐ-NHNN repealed by Decision 2872/QĐ-NHNN) (secondary).
 3. **The sending bank screens and scores the order.** This is the advisor's proposed moment: the order exists, so the bank knows the payee, the amount and what it knows about the payee.
 4. The bank submits the order to the payment scheme (NAPAS 24/7 in Vietnam).
 5. The receiving bank credits the payee.
@@ -26,7 +26,7 @@ Scheme time limits start only at step 4. The EU Instant Payments Regulation coun
 | Payee-name check | Not needed | Yes (EU Verification of Payee, primary; UK Confirmation of Payee, primary; Vietnam: account name shown through NAPAS, unverified) |
 | Shared lists of suspicious accounts | Yes | Yes, if the bank queries them (Vietnam: SIMO, secondary) |
 
-The simulator has one bank, so every payee is internal: payee features in the transfer-level scoring (EMTG-72) are a best case. The plan includes a run with payee features cut to the right-hand column.
+The simulator has one bank, so every payee is internal: payee features in the transfer-level scoring (EMTG-72) are a best case. The `external_payee` variant (119 features, cutting payee-side features to the right-hand column) was run in EMTG-72 and detected 99.4% of multi-day mules versus 99.6% for the full set—nearly unchanged because every sender in the single-bank simulator still has a full local history and very regular normal behaviour.
 
 ## 3. How much time there is
 
@@ -43,12 +43,12 @@ Real mules are much faster than the simulated ones. A daily review can stop a fi
 | Jurisdiction | Action before execution | Limits |
 |---|---|---|
 | Vietnam | Delay a transaction linked to a crime or a blacklisted party (Law on Anti-Money Laundering 2022, Art. 44) (secondary) | At most 3 working days; report at once to the competent authority and the State Bank; no liability for a lawful delay |
-| Vietnam | Refuse a payment order (Circular 17/2024/TT-NHNN, Art. 21) (secondary) | Listed grounds include frozen accounts, authority requests, prohibited acts and agreed cases; whether suspected fraud is itself a ground was not confirmed word for word (unverified) |
+| Vietnam | Refuse a payment order (Circular 17/2024/TT-NHNN, Art. 21(1)(b)) (secondary) | Listed grounds include invalid or incomplete orders, insufficient balance, closed/frozen accounts, authority requests, prohibited acts (Decree 52/2024/NĐ-CP Art. 8), doubts about truthfulness or transaction purpose under AML law, and other cases agreed in the account contract |
 | Vietnam | Block immediately or require identification for transfers to accounts flagged in SIMO (secondary, press quoting the State Bank) | In practice mostly a warning to the payer, who decides; no rule found that delays transfers to flagged accounts |
 | United Kingdom | Delay an outbound payment up to 4 business days (SI 2024/1013, in force 30 October 2024) (secondary) | Only when fraud by a person other than the payer is suspected, i.e. to protect a victim; a complicit mule's own transfer goes through the anti-money-laundering consent route (7 working days, then possibly 31 more) (unverified) |
 | European Union | No right to reject an instant transfer for suspected fraud under the Instant Payments Regulation; the payer decides (primary, Commission Q&A) | A blocking power is being negotiated in the Payment Services Regulation |
 
-Vietnam also writes the mule pattern into regulation. Appendix 02 of Circular 17/2024 lists, among the signs a bank must report: an account that "receives money from many different accounts and sends it out or withdraws it within a very short time", "more than 3 incoming transfers from accounts on the list of suspicious accounts", and one device (MAC address) used for more than one account (secondary). The first two are what the strongest features in the simulator measure (new senders, inflow surge, rapid forwarding) and what the propagation features of EMTG-72 will measure.
+Vietnam also writes the mule pattern into regulation. Appendix 02 of Circular 17/2024/TT-NHNN (updated by Circular 25/2025/TT-NHNN, issued 31 August 2025, which also added Appendix 03 for corporate accounts) sets the monthly reporting template for accounts suspected of fraud or illegal activity. Among the listed suspicious-reason indicators are an account that receives money from many different payment accounts and forwards or withdraws it immediately within a very short time leaving little or no balance, repeated incoming transfers from accounts on the suspicious list (a specific ">3 transfers" threshold appears in secondary summaries and should be checked against the official PDF before verbatim quotation), and multiple accounts linked to one device (secondary). The first two are what the strongest features in the simulator measure (new senders, inflow surge, rapid forwarding) and what the propagation features of EMTG-72 measure.
 
 A warning works on a deceived payer; it does not stop a complicit mule. For mules, the useful action at the moment of the first outgoing transfer is a delay or refusal followed by a report, which Vietnamese law allows for up to 3 working days.
 
@@ -73,10 +73,7 @@ The advisor's moment, the mule's own outgoing transfer, is one hop later than mo
 4. The alert budget of the second task is the number of transfers held per day, with false holds per 1,000 transfers, since a held legitimate transfer is a cost to a customer.
 5. The discussion chapter states the legal limits above and that a warning, unlike a hold, does not stop a complicit mule.
 
-## 8. To check against primary texts before quoting
+## 8. Verification status against primary texts (audited 2026-11-19)
 
-- Circular 17/2024/TT-NHNN Art. 21(1)(b) and Appendix 02, exact wording (official text blocked automated access).
-- Law on Anti-Money Laundering 2022 Art. 44, exact wording.
-- The State Bank act that established SIMO, and any rule on holding transfers to flagged accounts.
-- Decision 2345/QĐ-NHNN: "above" or "from" 10 million VND.
-- NAPAS 24/7 timeout values.
+- **Verified via official/legal mirrors:** Law on Anti-Money Laundering 2022 Art. 44 (max 3 working days, immediate report, immunity); Circular 17/2024/TT-NHNN Art. 21(1)(b); Circular 50/2024/TT-NHNN (superseding repealed Decision 2345/QĐ-NHNN) thresholds "above 10 million VND" per transfer and "above 20 million VND" per day; Circular 25/2025/TT-NHNN updating Appendix 02 of Circular 17/2024; SIMO has no publicly numbered standalone establishing act (deployed under SBV supervision directives such as Official Letter 3276/NHNN-TT).
+- **Still to check if quoted verbatim in thesis:** exact wording of the ">3 incoming transfers from suspicious accounts" threshold in the official PDF of Appendix 02 (Circular 17/2024 / 25/2025), and official NAPAS 24/7 rulebook timeout values.

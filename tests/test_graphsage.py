@@ -82,3 +82,15 @@ def test_train_epoch_with_features_gives_finite_loss():
     loss = train_epoch(m, stream, sc, rows_by_day(rows, "cpu", x), {"window": 3, "train_negative_rate": 1.0}, opt,
                        np.random.default_rng(0))
     assert np.isfinite(loss) and loss > 0
+
+
+def test_dropped_labels_stay_out_of_the_loss():
+    """Rows with a NaN label (mules left out under label scarcity) are never trained on; the loss stays finite."""
+    m = model()
+    rows = pd.DataFrame({"acct_id": [1, 2, 3] * 4, "snapshot": np.repeat([2, 3, 4, 5], 3), "node": [1, 2, 3] * 4,
+                         "label": [np.nan, 0.0, 0.0] * 4})
+    stream = Stream(events(), 8, "cpu")
+    opt = torch.optim.Adam(m.parameters(), lr=1e-3)
+    loss = train_epoch(m, stream, StatScaler(stream, range(0, 9), 3, NODES), rows_by_day(rows, "cpu"),
+                       {"window": 3, "train_negative_rate": 1.0}, opt, np.random.default_rng(0))
+    assert np.isfinite(loss)

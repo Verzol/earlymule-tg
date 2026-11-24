@@ -7,7 +7,8 @@ each applied over in-edges and out-edges separately, give the embedding; the acc
 deposit and the row's LightGBM features, exactly as the TGN with features does, so the two differ only in the encoder.
 Days are scored from their own graph with no state carried over: the window is all the history the graph part sees.
 Run: python -m earlymule.models.graphsage --data <export folder> [--config graphsage.yaml] [--seed N] [--out DIR]
-     [--max-epochs N] [--lr X]
+     [--max-epochs N] [--lr X] [--label-fraction F --label-cases CSV [--unlabeled negative|drop]]
+--label-fraction keeps the mule labels of a seeded share F of training cases, as in earlymule.models.tgn.
 Writes scores_val.parquet, scores_test.parquet (acct_id, snapshot, score) and run_meta.json to --out
 (default experiments/runs/<run_name>[_<dataset>]/<commit>/seed<N>/).
 """
@@ -28,6 +29,7 @@ from torch_geometric.nn import SAGEConv
 from torch_geometric.utils import coalesce
 
 from earlymule.config import load_paths
+from earlymule.data.label_fraction import kept_mules, relabel
 from earlymule.experiment_log import git_state, run_dir, set_seed
 from earlymule.models.tabular import load_config
 from earlymule.models.tgn import FeatureScaler, Stream, load_rows, pr_auc
@@ -121,8 +123,9 @@ def train_epoch(model, stream: Stream, scaler: StatScaler, train_rows: dict, cfg
     loss_fn, total, steps = BCEWithLogitsLoss(), 0.0, 0
     for d in sorted(train_rows):
         nodes, label, _, x = train_rows[d]
-        # All mules of the day, a share of the others, as in the TGN and the daily LightGBM run
-        keep = (label == 1) | (rng.random(len(label)) < cfg["train_negative_rate"])
+        # All mules of the day, a share of the others, as in the TGN and the daily LightGBM run; NaN labels (mules
+        # dropped under label scarcity) never enter the loss
+        keep = ((label == 1) | (rng.random(len(label)) < cfg["train_negative_rate"])) & ~np.isnan(label)
         if not keep.any():
             continue
         g = WindowGraph(stream, d, cfg["window"], model.deposit.numel())
@@ -170,7 +173,12 @@ def main(build_model=build_sage, default_config: str = "graphsage.yaml") -> None
     parser.add_argument("--max-epochs", type=int)
     parser.add_argument("--lr", type=float, help="learning rate for a sweep; the run is logged as <run_name>_lr<X>")
     parser.add_argument("--out")
+    parser.add_argument("--label-fraction", type=float, help="share of training cases that keep their mule labels")
+    parser.add_argument("--label-cases", help="case map of the training mules (acct_id, alert_id)")
+    parser.add_argument("--unlabeled", default="negative", choices=["negative", "drop"])
     args = parser.parse_args()
+    if (args.label_fraction is None) != (args.label_cases is None):
+        parser.error("--label-fraction and --label-cases go together")
     cfg = load_config(args.config)
     cfg["seed"] = cfg["seed"] if args.seed is None else args.seed
     cfg["max_epochs"] = args.max_epochs or cfg["max_epochs"]
@@ -193,6 +201,13 @@ def main(build_model=build_sage, default_config: str = "graphsage.yaml") -> None
     if cfg.get("account_features"):
         scaler = FeatureScaler(pd.read_parquet(data / "features_train.parquet").drop(columns=["acct_id", "snapshot"]))
     train_rows = load_rows(data, "train", scaler, device)
+    # Label scarcity: same kept cases per seed as the TGN and LightGBM runs; validation and test labels unchanged
+    if args.label_fraction is not None:
+        kept = kept_mules(pd.read_csv(args.label_cases), args.label_fraction, cfg["seed"])
+        train_rows = {d: (n, relabel(lab, acct, kept, args.unlabeled), acct, x)
+                      for d, (n, lab, acct, x) in train_rows.items()}
+        cfg |= {"label_fraction": args.label_fraction, "unlabeled": args.unlabeled, "labelled_mules": len(kept)}
+        cfg["run_name"] += f"_lf{args.label_fraction:g}" + ("_drop" if args.unlabeled == "drop" else "")
     val_rows = load_rows(data, "val", scaler, device)
     stats = StatScaler(stream, range(splits["train"][0], splits["train"][1] + 1), cfg["window"], len(nodes))
 

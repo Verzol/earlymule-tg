@@ -3,11 +3,13 @@
 Evaluation only: never join these columns into model features.
 Candidates need illicit inflow and outflow in the same alert. This establishes two-sided
 membership, not within-day forwarding order; cycle-initiator handling is audited separately.
-Run: python -m earlymule.data.ground_truth   (writes data/processed/ground_truth.parquet)
+Run: python -m earlymule.data.ground_truth [--dataset <AMLSim run>]
+     (writes data/processed/ground_truth.parquet; another run: data/processed/<run>/ground_truth.parquet)
 """
 
 from __future__ import annotations
 
+import argparse
 import numpy as np
 import pandas as pd
 
@@ -106,7 +108,12 @@ def summarize(gt: pd.DataFrame) -> pd.DataFrame:
 def main() -> None:
     """Build ground truth for the configured dataset, write parquet and print a summary."""
     # 1. Load the selected run
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dataset", help="AMLSim run folder; default from configs/paths.yaml")
+    args = parser.parse_args()
     paths = load_paths()
+    if args.dataset:
+        paths = paths.with_dataset(args.dataset)
     base_date = amlsim.read_base_date(paths.amlsim_conf)
     gt = build_ground_truth(
         amlsim.load_alert_accounts(paths.dataset_dir),
@@ -115,8 +122,8 @@ def main() -> None:
     )
 
     # 2. Write and report
-    paths.processed.mkdir(parents=True, exist_ok=True)
-    out_file = paths.processed / "ground_truth.parquet"
+    paths.dataset_processed.mkdir(parents=True, exist_ok=True)
+    out_file = paths.dataset_processed / "ground_truth.parquet"
     gt.to_parquet(out_file, index=False)
     cand = gt[gt["is_mule_candidate"]]
     print(f"{paths.dataset}: {len(gt)} alert accounts, {len(cand)} mule candidates -> {out_file}")

@@ -11,6 +11,7 @@ Writes the case map acct_id, alert_id of the training mules, which the Kaggle ru
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 import numpy as np
@@ -56,7 +57,10 @@ def main() -> None:
     parser.add_argument("--out", required=True)
     args = parser.parse_args()
     rows = pd.read_parquet(Path(args.export) / "rows_train.parquet", columns=["acct_id", "label"])
-    gt = pd.read_parquet(load_paths().processed / "ground_truth.parquet", columns=["acct_id", "alert_id"])
+    # Ground truth of the export's own dataset (its manifest names it)
+    dataset = json.loads((Path(args.export) / "manifest.json").read_text(encoding="utf-8"))["dataset"]
+    gt = pd.read_parquet(load_paths().with_dataset(dataset).dataset_processed / "ground_truth.parquet",
+                         columns=["acct_id", "alert_id"])
     cases = train_mule_cases(rows, gt)
     cases.to_csv(args.out, index=False)
     print(f"{len(cases)} training mules in {cases.alert_id.nunique()} cases -> {args.out}")

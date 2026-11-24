@@ -81,7 +81,7 @@ def export(cfg: dict) -> Path:
 
     # 3. Labels and mule outcomes from the case files (evaluation only; never joined as features)
     illicit = amlsim.load_alert_transactions(paths.dataset_dir, base)
-    gt = pd.read_parquet(paths.processed / "ground_truth.parquet")
+    gt = pd.read_parquet(paths.dataset_processed / "ground_truth.parquet")
     mules = gt[gt.is_mule_candidate]
     labels = keys[["seq"]].assign(illicit=keys.seq.isin(illicit.tran_id).astype("int8"))
     labels["mule_illicit"] = (labels.illicit.astype(bool) & keys.orig_acct.isin(mules.acct_id)).astype("int8")

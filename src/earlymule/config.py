@@ -29,6 +29,15 @@ class Paths:
     dataset: str
     processed: Path
     experiments: Path
+    main_dataset: str = ""
+
+    @property
+    def dataset_processed(self) -> Path:
+        """Processed files of the selected run: data/processed for the main dataset, data/processed/<dataset> otherwise.
+
+        The main dataset keeps the original location so that its saved outputs stay valid.
+        """
+        return self.processed if self.dataset == (self.main_dataset or self.dataset) else self.processed / self.dataset
 
     @property
     def dataset_dir(self) -> Path:
@@ -85,4 +94,5 @@ def load_paths(
         dataset=str(cfg["dataset"]),
         processed=resolve(cfg["processed"]),
         experiments=resolve(cfg["experiments"]),
+        main_dataset=str(cfg["dataset"]),
     )

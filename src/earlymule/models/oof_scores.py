@@ -54,7 +54,7 @@ def assign_folds(accounts: pd.Index, case_of: pd.Series, k: int, seed: int = 0) 
 def write_folds(k: int) -> Path:
     """Folds of the configured dataset from its ground truth; returns the CSV path."""
     paths = load_paths()
-    gt = pd.read_parquet(paths.processed / "ground_truth.parquet")
+    gt = pd.read_parquet(paths.dataset_processed / "ground_truth.parquet")
     if gt.acct_id.duplicated().any():
         raise ValueError("an account belongs to two cases; folds by case would split it")
     accounts = pd.read_csv(paths.dataset_dir / "accounts.csv", usecols=["acct_id"]).acct_id

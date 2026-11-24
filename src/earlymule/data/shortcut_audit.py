@@ -3,10 +3,13 @@
 Each feature ranks accounts alone against the mule-candidate label (ROC-AUC 0.5 = no signal,
 far from 0.5 in either direction = shortcut). Features cover the whole simulation, so this is a
 screening of the dataset, not a point-in-time model; never reuse them as model inputs.
-Run: python -m earlymule.data.shortcut_audit   (writes data/processed/shortcut_audit.csv, shortcut_members.csv)
+Run: python -m earlymule.data.shortcut_audit [--dataset <AMLSim run>]
+     (writes shortcut_audit.csv, shortcut_members.csv to data/processed, or data/processed/<run> for another run)
 """
 
 from __future__ import annotations
+
+import argparse
 
 import numpy as np
 import pandas as pd
@@ -96,7 +99,11 @@ def member_activity(f: pd.DataFrame, gt: pd.DataFrame) -> pd.DataFrame:
 def main() -> None:
     """Screen the configured dataset and write the AUC table."""
     # 1. Labels and whole-period activity of the selected run
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dataset", help="AMLSim run folder; default from configs/paths.yaml")
+    args = parser.parse_args()
     paths = load_paths()
+    paths = paths.with_dataset(args.dataset) if args.dataset else paths
     base = amlsim.read_base_date(paths.amlsim_conf)
     gt = build_ground_truth(amlsim.load_alert_accounts(paths.dataset_dir),
                             amlsim.load_alert_transactions(paths.dataset_dir, base),
@@ -118,14 +125,14 @@ def main() -> None:
     table = single_feature_auc(f, positive, populations)
 
     # 3. Write and report
-    paths.processed.mkdir(parents=True, exist_ok=True)
-    out_file = paths.processed / "shortcut_audit.csv"
+    paths.dataset_processed.mkdir(parents=True, exist_ok=True)
+    out_file = paths.dataset_processed / "shortcut_audit.csv"
     table.rename_axis("feature").to_csv(out_file)
     sizes = {k: f"{int(m.sum())} ({int(positive[m].sum())} pos)" for k, m in populations.items()}
     print(f"{paths.dataset}: populations {sizes} -> {out_file}")
     print(table.round(3).to_string())
     members = member_activity(f, gt)
-    members.to_csv(paths.processed / "shortcut_members.csv")
+    members.to_csv(paths.dataset_processed / "shortcut_members.csv")
     print(members.round(3).to_string())
 
 

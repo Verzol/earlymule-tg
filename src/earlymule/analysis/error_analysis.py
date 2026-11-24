@@ -117,7 +117,7 @@ def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
 
     # 1. Ground truth and decision-point features of the test rows
-    gt = pd.read_parquet(paths.processed / "ground_truth.parquet")
+    gt = pd.read_parquet(paths.dataset_processed / "ground_truth.parquet")
     feats = pd.read_parquet(paths.processed / "kaggle" / paths.dataset / "features_test.parquet",
                             columns=["acct_id", "snapshot", *FEATURES])
 

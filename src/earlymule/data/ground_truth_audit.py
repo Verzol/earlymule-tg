@@ -1,6 +1,6 @@
 """Audit labels against both AMLSim transaction exports and write per-member evidence.
 
-Run: python -m earlymule.data.ground_truth_audit
+Run: python -m earlymule.data.ground_truth_audit [--dataset <AMLSim run>]
 Inputs: configured AMLSim outputs and generator members. Outputs: ground_truth_label_audit.csv
 and ground_truth_label_audit.json under data/processed; no feature or training input is produced.
 Layered mule typologies are also checked against their generator plan (layered_flow_checks).
@@ -8,11 +8,12 @@ Layered mule typologies are also checked against their generator plan (layered_f
 
 from __future__ import annotations
 
+import argparse
 import json
 
 import pandas as pd
 
-from earlymule.config import load_paths
+from earlymule.config import Paths, load_paths
 from earlymule.data import amlsim
 from earlymule.data.ground_truth import build_ground_truth
 
@@ -92,14 +93,14 @@ def layered_flow_checks(gt: pd.DataFrame, illicit: pd.DataFrame, members: pd.Dat
     }
 
 
-def audit_labels() -> tuple[pd.DataFrame, dict]:
+def audit_labels(paths: Paths | None = None) -> tuple[pd.DataFrame, dict]:
     """Cross-check illicit edges; return same-alert evidence and counts at day resolution.
 
     Normal transfers inside each alert's observed first-to-last illicit day are counted
     only to show why nearby activity cannot prove that an edge belongs to the case.
     """
     # 1. Compare every illicit transaction with the complete transaction export.
-    paths = load_paths()
+    paths = paths or load_paths()
     base = amlsim.read_base_date(paths.amlsim_conf)
     illicit = amlsim.load_alert_transactions(paths.dataset_dir, base)
     tx = pd.read_csv(paths.dataset_dir / "transactions.csv")
@@ -182,8 +183,13 @@ def audit_labels() -> tuple[pd.DataFrame, dict]:
 
 def main() -> None:
     """Write reproducible row evidence and a JSON summary to the configured processed directory."""
-    evidence, summary = audit_labels()
-    target = load_paths().processed
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dataset", help="AMLSim run folder; default from configs/paths.yaml")
+    args = parser.parse_args()
+    paths = load_paths()
+    paths = paths.with_dataset(args.dataset) if args.dataset else paths
+    evidence, summary = audit_labels(paths)
+    target = paths.dataset_processed
     target.mkdir(parents=True, exist_ok=True)
     evidence.to_csv(target / "ground_truth_label_audit.csv", index=False)
     (target / "ground_truth_label_audit.json").write_text(

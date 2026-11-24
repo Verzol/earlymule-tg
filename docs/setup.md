@@ -267,4 +267,17 @@ Research plan section 19. `python -m earlymule.data.label_fraction --export <exp
 
 LightGBM runs on Kaggle CPU: `python notebooks/kaggle/label_fraction/make_batches.py --commit <sha>` writes one notebook folder per 6 runs to `notebooks/kaggle/label_fraction/batches/<k>/` (git-ignored); push with `kaggle kernels push -p <folder>`, download with `kaggle kernels output verzol/earlymule-lgbm-lf-<k> -p <folder>`, evaluate with `import_scores`. Compare each fraction with `lgbm_abl_full` of the same commit family, which has the same negative sample per seed.
 
-The graph models run on Kaggle GPU: `python notebooks/kaggle/label_fraction/make_gpu_batches.py --commit <sha>` writes four notebook folders to `notebooks/kaggle/label_fraction/batches_gpu/<k>/` (git-ignored), each a list of stages run one after another with the three seeds of a stage in parallel on the two T4s, sized to stay under the 12-hour limit (about 20 GPU hours in all for 1, 5 and 10%). Only two GPU sessions run at a time, so push batches 1 and 2 first and 3 and 4 when a slot frees; kernels are `verzol/earlymule-tgn-lf-<k>`.
+The graph models run on Kaggle GPU: `python notebooks/kaggle/label_fraction/make_gpu_batches.py --commit <sha>` writes four notebook folders to `notebooks/kaggle/label_fraction/batches_gpu/<k>/` (git-ignored), each a list of stages run one after another with the three seeds of a stage in parallel on the two T4s, sized to stay under the 12-hour limit (about 20 GPU hours in all for 1, 5 and 10%). Only two GPU sessions run at a time, so push batches 1 and 2 first and 3 and 4 when a slot frees (batch 5 reruns the STA-GT seeds that ran out of memory; the template now gives STA-GT one run per GPU); kernels are `verzol/earlymule-tgn-lf-<k>`.
+
+### 4.8. Confirmation draws
+
+Protocol section 12. Each draw is the main AMLSim configuration with another `random_seed` (`AMLSim/conf_80K-earlymule-mule-g<g>.json`, simulation name `80K-earlymule-mule-g<g>`), generated with the three commands of section 2.3. The data commands take `--dataset <draw>` and write to `data/processed/<draw>/`; the main dataset keeps `data/processed/` (`Paths.dataset_processed`):
+```bash
+python -m earlymule.data.ground_truth --dataset <draw>
+python -m earlymule.data.ground_truth_audit --dataset <draw>
+python -m earlymule.data.shortcut_audit --dataset <draw>
+python -m earlymule.data.export_events --dataset <draw>
+python -m earlymule.data.label_fraction --export data/processed/kaggle/<draw> --out data/processed/kaggle/<draw>/label_cases_<draw>.csv
+kaggle datasets create -p data/processed/kaggle/<draw> -r skip
+```
+The case map travels inside the export, so the draw's notebooks need only `verzol/earlymule-<draw, lower case>`. `make_gpu_batches.py --commit <sha> --dataset <draw>` writes the draw's two GPU batches (`batches_gpu/<draw>-a`: role-transition step with full labels and 5% of cases, GraphSAGE; `-b`: TGN with features, STA-GT), kernels `verzol/earlymule-conf-g<g>-<a|b>`; `make_batches.py --commit <sha> --dataset <draw> --fractions 1 0.05 --modes negative` writes the LightGBM batch (fraction 1 = full labels), kernel `verzol/earlymule-lgbm-g<g>-1`. Runs on a draw are logged with the draw's name appended (`tgn_transition_80K-earlymule-mule-g1`), and `import_scores` reads the ground truth of the dataset named in `run_meta.json`.

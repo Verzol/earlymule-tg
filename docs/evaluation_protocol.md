@@ -1,6 +1,6 @@
 # Evaluation protocol v0.4
 
-Version 0.4, 2026-11-18, updated 2026-11-23 with the run-to-run variation of the neural models (sections 6, 7, decisions 9 and 10), label scarcity (section 11), and on 2026-11-24 with the rule for choosing variants (decision 11) (v0.3: 2026-11-10). Fixes how every model in the thesis is scored, so that LightGBM, the graph baselines and EarlyMule-TG are compared under the same rules. The dataset, labels and allowed columns are in `docs/data_spec.md`. Choices that stay within the research plan are decisions, each with its reason; the one change to a definition in the plan, the primary early-detection metric, was sent to the advisor on 2026-11-09, applied as proposed on 2026-11-12 and approved by the advisor on 2026-11-15 (section 8). Section 9 lists what is not implemented yet.
+Version 0.4, 2026-11-18, updated 2026-11-23 with the run-to-run variation of the neural models (sections 6, 7, decisions 9 and 10), label scarcity (section 11), and on 2026-11-24 with the rule for choosing variants (decision 11), the choice of the proposed model and the end of decision 7 (decision 12), and the pre-registered confirmation on new simulations (section 12, decision 13) (v0.3: 2026-11-10). Fixes how every model in the thesis is scored, so that LightGBM, the graph baselines and EarlyMule-TG are compared under the same rules. The dataset, labels and allowed columns are in `docs/data_spec.md`. Choices that stay within the research plan are decisions, each with its reason; the one change to a definition in the plan, the primary early-detection metric, was sent to the advisor on 2026-11-09, applied as proposed on 2026-11-12 and approved by the advisor on 2026-11-15 (section 8). Section 9 lists what is not implemented yet.
 
 v0.2 answered two reviews of v0.1: finished mules stay in the ranking, the alert budget counts new accounts with a 30-day cooldown, the primary metric is detection before the first forwarding, model comparisons use a paired case bootstrap, and ties and the start of the alert history follow fixed rules. v0.3 adds the research plan's threshold rule, its secondary metrics and per-typology table, results over all accounts for the daily task, and early stopping on validation PR-AUC only (section 7). All logged runs were redone under these rules (commit `c62fa61`). v0.4 adds a second task, scoring each outgoing transfer just before it executes (section 10), after the advisor's suggestion of 2026-11-15; it is reported next to the primary metric and does not replace it.
 
@@ -150,11 +150,13 @@ Paired comparisons (section 6, difference in points, 95% interval, seeds 0 / 1 /
 | 4 | Alert budget: K = 10 new accounts per day with a 30-day cooldown; 5, 20, 50 and the plan's threshold rule also reported | A bank reviews a fixed number of cases per day; 30 days is the longest feature window | Applied |
 | 5 | Folds: one fixed time split with three seeds | Allowed by the plan (section 21.4); keeps the full test period | Applied |
 | 6 | The TGN with the LightGBM features is the plan's ablation row "TGN + multi-scale behaviour", a step towards EarlyMule-TG, not an outside baseline. The role and role-transition steps must each beat the step before them, so the bar for EarlyMule-TG is this model, not LightGBM or the plain TGN | The plan's ablation table adds multi-scale behaviour to the TGN before the role modules; each added module has to show its own gain | Applied 2026-11-12 |
-| 7 | Early stopping stays on validation PR-AUC for every model, although test detection before forwarding does not always follow it (control learning-rate sweep, section 7) | Changing the stopping metric means rerunning every model; to be decided once the outside baselines are in | Open |
+| 7 | Early stopping stays on validation PR-AUC for every model, although test detection before forwarding does not always follow it (control learning-rate sweep, section 7) | Changing the stopping metric means rerunning every model. Closed before the confirmation runs (section 12): PR-AUC uses every labelled validation row and moves smoothly between epochs, whereas detection before forwarding counts about 170 validation mules and jumps by whole mules; the choice between variants already uses the primary metric (decision 11) | Closed 2026-11-24: PR-AUC kept for every model and every dataset |
 | 8 | Second task at payment initiation, reported next to the primary metric, not instead of it. Label: illicit outflow of a mule; budget: H new accounts held per day with a 30-day cooldown and a fixed threshold chosen on validation | Advisor's suggestion (2026-11-15) to score when the bank is about to execute the first transfer. A fixed threshold, because a hold must be decided when the order arrives; accounts as the budget unit, so H = K compares the same review load | Applied (section 10) |
 | 9 | Repeated runs of one neural configuration are all reported and pooled; the verdict rule of section 6 is unchanged, and a difference smaller than the spread between repeats of the same seed is described as within training noise | GPU training is not reproducible by seed: two runs of the same role-transition configuration differ by up to 5.2 points in one seed (section 7, follow-up runs) | Applied 2026-11-23 |
 | 10 | Label scarcity keeps the labels of whole training cases (a seeded shuffle of cases, nested across fractions); the other training mules count as negatives. Leaving them out of the loss is reported as a sensitivity run | A bank learns of mules case by case, through investigations. It cannot remove mules it does not know of from its negatives, so leaving them out would use the ground truth | Applied 2026-11-23 (section 11) |
 | 11 | Variants of a model (configuration, loss, learning rate) are chosen on the primary metric on validation, mean of 3 seeds. A difference within the spread between repeats of one configuration counts as a tie, broken by mean validation PR-AUC and then by the simpler variant. Early stopping inside a run stays on validation PR-AUC (decision 7) | Validation PR-AUC ranked the role-transition variants against the primary metric: focal loss was first on it and last on detection before forwarding, on validation and on test (section 7). Test is still never used for a choice. Changed on 2026-11-24, after the focal result; the choices made before it (original role-transition step, no class weighting, control learning rate 0.001) were checked under the new rule and all stand (control: 0.001 and 0.003 tie at 0.709 on validation, 0.001 is higher on PR-AUC) | Applied 2026-11-24 |
+| 12 | The proposed model is the role-transition step (A5, `configs/tgn_transition.yaml`), without the gated fusion of A6. STA-GT and the plain TGN are kept as baselines; the gated fusion and the role-state step are reported on the main dataset only | Validation, detection before forwarding at K = 10, mean of 3 seeds: role transition 0.836 (0.823 pooled with its repeat), TGN with features 0.824, role state 0.821, gated fusion 0.773, GraphSAGE 0.776 (72 features), LightGBM 0.779, STA-GT 0.730. The fusion is lower than the transition step by more than the spread between its repeats (0.809 to 0.836), so it is dropped. The transition step and the TGN with features tie on the primary metric; the tie goes to the transition step on validation PR-AUC (0.517 pooled against 0.510), and whether the transition adds anything is the confirmatory comparison 2 of section 12 | Applied 2026-11-24 |
+| 13 | Confirmation on new simulations, pre-registered before they are generated (section 12). The main dataset becomes development data: its test period has served about 30 comparisons, a learning-rate sweep read on test and the change of selection rule in decision 11 | A conclusion that rests on one simulated draw, whose test set already informed choices, cannot be called confirmed | Pre-registered 2026-11-24 |
 
 ## 9. Commands on saved run outputs
 
@@ -223,3 +225,41 @@ Research plan section 19 (decision 10). Only the training mules of a share of th
 - With a quarter of the cases labelled, LightGBM is within the run-to-run spread of the full-label model; the loss grows below 10% and is large at 1%. Seed 1 is the weakest from 1% to 10%; at 1% it has the most labelled mules (8), but 7 of them come from one cycle case (seeds 0 and 2: relay chain and fan-in/fan-out cases), so which cases are labelled matters more than how many mules they hold.
 - Leaving the unlabelled mules out of training instead (sensitivity run, `_drop`) changes little: 0.593, 0.738, 0.755, 0.792 at 1 / 5 / 10 / 25%. Against counting them as negatives, the only clear gap is 1% seed 1 (+15.0 [+7.9, +22.6]); at 5% and above no interval excludes 0.
 - The graph models (TGN with features, STA-GT-inspired, the role-transition step) run once the class-imbalance choice of section 7 is made, with the same cases per seed.
+
+## 12. Confirmation on new simulations (pre-registered 2026-11-24)
+
+Written before any of these datasets is generated, at the commit tagged `prereg-2026-11-24`. Nothing below changes after the first model is trained on them; a deviation is reported as such, with its reason.
+
+**Data.**
+- **Confirmation draws G1, G2, G3:** `80K-earlymule-mule` regenerated with the same AMLSim configuration and three new random seeds; ground truth, export, leakage checks and dataset statistics as for the main dataset. LightGBM also runs on two more draws, G4 and G5, to estimate the variation between draws.
+- **Harder data, two levels (moderate, hard):** normal accounts with irregular timing and new partners, legitimate accounts that pass most of what they receive on, mules that forward a variable share and amount, and mules paid by partners they already knew (`docs/data_spec.md` decision 5). The generator parameters of both levels are written into the data spec before either level is generated, and every level is reported.
+- **IBM AML HI-Small:** only if the feasibility check of 2026-12-06 says so. Its windows, cooldown and split are then fixed in a note before any model is trained on it.
+
+**Models.** Frozen at the tag, with no tuning on the new data:
+- LightGBM with 72 features.
+- GraphSAGE.
+- TGN with features.
+- STA-GT-inspired.
+- The role-transition step (decision 12).
+- DyGFormer with the 72 features, once integrated (main dataset and G1–G3 only).
+- Two reference rows: random ranking, and a rule after the Vietnamese indicator of many incoming transfers followed by immediate forwarding (Circular 17/2024/TT-NHNN, Appendix 02). The rule's exact form is fixed in `reports/bank_feasibility.md` before it is scored.
+- Three seeds per model and dataset; label scarcity runs at 5% of cases for the role-transition step and LightGBM.
+
+**Confirmatory family.** Each research question gets one comparison, all on detection before forwarding at K = 10:
+1. TGN with features against LightGBM: does a temporal graph add to the tabular model?
+2. Role-transition step against TGN with features: does the transition representation add?
+3. Role-transition step against LightGBM at 5% of labelled cases.
+4. Role-transition step against LightGBM on mules paid by a partner they already knew before their onset (`known_upstream` in `earlymule.analysis.error_analysis`). Found on the main test set with 23 mules, so it is a hypothesis here, not a result.
+5. As comparison 1, on IBM AML HI-Small, if that dataset is run.
+
+**Statistic.**
+1. For each draw, each mule's outcome is averaged over the three seeds of each model; the difference of the two models is taken per mule.
+2. Hierarchical case bootstrap: 10,000 resamples. Within each draw, laundering cases are resampled; the draws are pooled with weights equal to their numbers of counted mules.
+3. Two-sided p-value: twice the smaller tail share of the bootstrap distribution around 0. Holm's correction across the family.
+4. **Better:** the Holm-adjusted p-value is below 0.05 with a positive pooled difference, and the difference is positive in at least two of the three confirmation draws.
+5. **Not shown:** otherwise, with the pooled difference and its 95% interval still reported.
+6. The per-seed rule of section 6 is reported for each draw alongside.
+7. Comparisons outside the family (harder data, unseen typologies, other alert budgets, other models) are descriptive: intervals without correction, no verdict.
+
+**Unseen typologies** (descriptive). For each of the five typologies, its training mules are removed from the training rows, not relabelled as negatives, and the model is scored on that typology's test mules. LightGBM runs all five, the role-transition step two (collector to a single exit, cycle), three seeds each, on the main dataset. Expected: little effect, because the share of inflow from new partners leads every typology (AUC 0.94 to 0.98) and each typology has few test mules.
+

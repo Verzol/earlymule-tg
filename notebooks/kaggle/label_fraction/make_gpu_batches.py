@@ -1,6 +1,6 @@
 """Generate the Kaggle GPU notebook folders of the label-scarcity runs of the graph models.
 
-Each batch is a list of stages (module, config, label fraction or None for full labels); the stages of one batch run
+Each batch is a list of stages (module, config, label fraction or None for full labels, optional seeds); the stages of one batch run
 one after another, the seeds of a stage in parallel on the two T4 GPUs. Batches are sized to stay well under the
 12-hour session limit. Each folder gets the GPU template with its own parameter cell and a kernel-metadata.json
 (id verzol/earlymule-tgn-lf-<k>, T4, the 80K export and the case map as inputs).
@@ -25,6 +25,8 @@ BATCHES = [
     [(TGN, "tgn_features.yaml", 0.01), (TGN, "tgn_features.yaml", 0.05), (STAGT, "stagt.yaml", 0.01)],
     [(TGN, "tgn_transition.yaml", 0.1), (STAGT, "stagt.yaml", 0.05), (SAGE, "graphsage.yaml", None)],
     [(TGN, "tgn_features.yaml", 0.1), (STAGT, "stagt.yaml", 0.1)],
+    # Batches 2 and 3 ran two STA-GT seeds on one GPU and seed 0 ran out of memory; 0.1 seed 0 in case batch 4 does too
+    [(STAGT, "stagt.yaml", 0.01, [0]), (STAGT, "stagt.yaml", 0.05, [0]), (STAGT, "stagt.yaml", 0.1, [0])],
 ]
 
 

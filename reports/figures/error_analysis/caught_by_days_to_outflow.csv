@@ -1,0 +1,4 @@
+days_to_outflow,lightgbm_daily,tgn_transition,mules
+1,0.772,0.813,41
+2,0.846,0.816,67
+3+,0.856,0.903,65

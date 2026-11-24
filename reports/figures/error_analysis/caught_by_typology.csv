@@ -1,0 +1,6 @@
+typology,lightgbm_daily,tgn_transition,mules
+cycle,0.583,0.625,24
+mule_collect_disperse,0.929,0.905,42
+mule_collect_exit,0.857,0.937,42
+mule_fan_in_out,0.823,0.833,32
+mule_relay_chain,0.869,0.838,33

@@ -1,0 +1,4 @@
+group,activity_30d,new_share_in_7d,new_peers_in_7d,n_in_7d_over_30d,peers_in_30d,n_in_30d,n_out_30d,mules
+always caught,7.0,1.0,2.0,1.0,2.0,2.0,4.0,126
+never caught,14.5,0.028,0.5,0.338,6.5,10.0,4.5,12
+sometimes,12.0,0.5,1.0,0.5,3.0,7.0,4.0,35

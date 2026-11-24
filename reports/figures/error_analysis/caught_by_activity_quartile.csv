@@ -1,0 +1,5 @@
+activity_quartile,lightgbm_daily,tgn_transition,mules
+Q1 low,0.955,0.97,44
+Q2,0.93,0.977,43
+Q3,0.86,0.868,43
+Q4 high,0.581,0.574,43

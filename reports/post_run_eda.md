@@ -58,12 +58,62 @@
 
 11. **Why sources and exits draw alerts.** On their first illicit day, case members that are not mules have a median `new_share_in_7d` of 0.67 (mules 1.00, regular accounts 0.00) and a raised `n_in_7d_over_30d` (0.43 against 0.20): they also deal with new partners during a case, so a model built on that signal scores them high (explained notebook, part 10).
 
+## Error analysis of the two leading models (2026-11-24)
+
+`python -m earlymule.analysis.error_analysis` (saved test scores only, about 30 seconds in WSL; tables in `figures/error_analysis/`). LightGBM with the 72 features and the role-transition step, both at `7bfcfb4`, 3 seeds each, 10 new alerts per day with a 30-day cooldown. 173 test mules leave at least one day before forwarding; every share below is the mean over the 3 seeds. Activity is the account's transfers in the 30 days up to the decision point (end of day first outflow − 1), split into quartiles of these 173 mules.
+
+12. **Mules paid by a known partner are the largest blind spot.** For 23 of the 173 mules (13%), one of the case members upstream of the mule had already sent it money before its onset, so the illicit inflow does not come from a new sender. LightGBM catches 39.1% of them before forwarding, the role-transition step 52.2%; for the other 150 mules both catch 90%. 8 of the 12 mules that neither model ever catches belong to this group. At the decision point their median `new_share_in_7d` is 0.17, against 1.00 for the others. This is the limit of the counterparty-churn signal (finding 4): when the sender is not new, nothing in the strongest feature changes.
+
+    | Mules | Count | LightGBM | Role transition |
+    |---|---:|---:|---:|
+    | Upstream member already a partner | 23 | 0.391 | 0.522 |
+    | Upstream member new | 150 | 0.900 | 0.898 |
+
+13. **Busy accounts overlap with that group but are a blind spot of their own.** 15 of the 23 known-partner mules are in the busiest quartile. Among mules paid by a new sender, the busiest quartile is still caught only 65% of the time, against 93% to 98% for the other three. Both models lose the same way (busiest quartile 58.1% and 57.4%).
+
+    | Activity quartile | Mules | LightGBM | Role transition |
+    |---|---:|---:|---:|
+    | Q1 (least active) | 44 | 0.955 | 0.970 |
+    | Q2 | 43 | 0.930 | 0.977 |
+    | Q3 | 43 | 0.860 | 0.868 |
+    | Q4 (most active) | 43 | 0.581 | 0.574 |
+
+14. **Cycles stay harder within the same groups.** Among mules paid by a new sender, cycle mules are caught 69% of the time, against 91% to 95% for the layered typologies; in the busiest quartile 38% against 75%. The numbers are small (24 eligible cycle mules, 8 in the busiest quartile), so this is a direction for the case study, not a result.
+
+15. **Less time helps less than expected.** By days from onset to first outflow: 1 day 77.2% / 81.3% (41 mules), 2 days 84.6% / 81.6% (67), 3 or more 85.6% / 90.3% (65). A single day before forwarding is usually enough when the signal is there.
+
+16. **How far the misses are from the budget.** For each missed mule, the best rank it reached on any day before forwarding, among the accounts that could still be alerted that day (accounts in cooldown left out). The role-transition step misses fewer mules and its misses are closer to the cut:
+
+    | Best rank of a missed mule | LightGBM | Role transition |
+    |---|---:|---:|
+    | 1–10, but alerted shortly before onset (blocked by the cooldown) | 8 | 3 |
+    | 11–20 | 17 | 15 |
+    | 21–50 | 13 | 24 |
+    | 51–100 | 6 | 9 |
+    | above 100 | 43 | 28 |
+    | missed (3 seeds) | 87 | 79 |
+
+    About a fifth of the misses would be caught with 20 alerts per day. Half of the LightGBM misses and a third of the role-transition misses rank above 100: these mules do not look unusual on any day before forwarding. A few mules were alerted in the 30 days before their onset, when they were not yet mules, and the cooldown then blocked the alert that would have counted.
+
+17. **Where the alerts go, in more detail.** Shares of all alerts (LightGBM / role transition):
+
+    | Alert on | LightGBM | Role transition |
+    |---|---:|---:|
+    | Mule during its case | 12.0% | 12.0% |
+    | Non-mule case member during its case (sources and destinations while the case runs) | 20.3% | 18.3% |
+    | Non-mule case member outside its case | 12.1% | 11.7% |
+    | Mule outside its case days | 6.9% | 5.1% |
+    | Account outside every case | 48.7% | 53.0% |
+
+    About three fifths of the alerts on non-mule case members fall while their case runs. A bank investigating such an alert would find the case, so these are not plain false alarms; the protocol still counts them as false alerts (evaluation protocol, decision 2). The alerts on accounts outside every case go to a small, shared group: 1,940 accounts take 5,490 alerts over both models and all seeds, 763 accounts alerted by both models take 66% of them, and 418 accounts are alerted 5 or more times. 91.6% of these alerts fall on a day when the account had a new sender in the last 7 days, against 5.1% of random scored account-days: they are ordinary accounts that briefly look like a mule on the strongest signal.
+
 ## What this means for the next steps
 
 - **The advisor's question, which features identify a mule:** under end-of-day scoring before the first outflow, the evidence is a sudden inflow from senders the account has never dealt with, measured against its own 30-day baseline. Forwarding behaviour, the classic mule signal, is not yet observable at that point.
 - **Scoring before the transfer is executed (EMTG-72)** adds exactly what is missing: at the pending transfer the bank sees the outgoing side (amount against the fresh inflow, new payee, the payee's own behaviour). It also reaches the 182 same-day mules that receive first.
 - **The feature ablation (EMTG-70)** has to show how much of the result rests on counterparty churn, the family most tied to the simulator's regular normal accounts; `no_churn` and `no_shortcuts` are the key rows.
 - **Error analysis (EMTG-58)** starts from the two groups above: cycle mules and high-activity mules, plus the case members that take a third of the alerts.
+- **After the error analysis (2026-11-24):** the main blind spot is a mule paid by a partner it already knew (findings 12 and 13). Signals that do not depend on a new sender, such as a change in what a known partner sends or the risk of the sender itself, are the direction for the next model step; the role-transition step already does better on this group (52% against 39%), on only 23 mules.
 
 ## Files
 
@@ -75,3 +125,6 @@
 | `figures/eda/univariate_by_typology.csv` | Best three features per typology |
 | `figures/eda/correlation_clusters.csv` | Clusters at \|ρ\| > 0.9 and their representative |
 | `figures/eda/timeline_by_typology.csv`, `feature_lead.csv` | Timeline summary; earliest separating day against matched controls |
+| `figures/error_analysis/mule_outcomes.csv` | Per mule, run and seed: caught before forwarding, best rank before forwarding, groups and decision-point features |
+| `figures/error_analysis/caught_by_*.csv`, `missed_rank_bands.csv`, `alert_kinds.csv` | Tables of findings 12 to 17 |
+| `figures/error_analysis/never_caught.csv`, `never_vs_always_profile.csv`, `ordinary_alert_profile.csv`, `summary.json` | The 12 mules neither model catches; feature medians by group; headline numbers |

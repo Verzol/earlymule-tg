@@ -1,0 +1,13 @@
+kind,lightgbm_daily,tgn_transition,lightgbm_daily alerts,tgn_transition alerts
+active mule,0.1198,0.1198,647,647
+"member collector, during case",0.0033,0.0044,18,24
+"member collector, outside case",0.0011,0.0013,6,7
+"member destination, during case",0.1059,0.1046,572,565
+"member destination, outside case",0.0385,0.0409,208,221
+"member disperser, during case",0.0022,0.002,12,11
+"member disperser, outside case",0.0037,0.0013,20,7
+"member no_illicit, outside case",0.0013,0.0013,7,7
+"member source, during case",0.0917,0.0715,495,386
+"member source, outside case",0.0765,0.072,413,389
+mule outside its case,0.0693,0.0507,374,274
+ordinary account,0.4867,0.53,2628,2862

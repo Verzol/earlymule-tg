@@ -1,0 +1,123 @@
+{
+ "runs": [
+  "lightgbm_daily@7bfcfb4",
+  "tgn_transition@7bfcfb4"
+ ],
+ "k": 10,
+ "seeds": [
+  0,
+  1,
+  2
+ ],
+ "eligible_mules": 173,
+ "never_caught": 12,
+ "always_caught": 126,
+ "caught_by_typology": {
+  "lightgbm_daily": {
+   "cycle": 0.583,
+   "mule_collect_disperse": 0.929,
+   "mule_collect_exit": 0.857,
+   "mule_fan_in_out": 0.823,
+   "mule_relay_chain": 0.869
+  },
+  "tgn_transition": {
+   "cycle": 0.625,
+   "mule_collect_disperse": 0.905,
+   "mule_collect_exit": 0.937,
+   "mule_fan_in_out": 0.833,
+   "mule_relay_chain": 0.838
+  }
+ },
+ "caught_by_days_to_outflow": {
+  "lightgbm_daily": {
+   "1": 0.772,
+   "2": 0.846,
+   "3+": 0.856
+  },
+  "tgn_transition": {
+   "1": 0.813,
+   "2": 0.816,
+   "3+": 0.903
+  }
+ },
+ "caught_by_activity": {
+  "lightgbm_daily": {
+   "Q1 low": 0.955,
+   "Q2": 0.93,
+   "Q3": 0.86,
+   "Q4 high": 0.581
+  },
+  "tgn_transition": {
+   "Q1 low": 0.97,
+   "Q2": 0.977,
+   "Q3": 0.868,
+   "Q4 high": 0.574
+  }
+ },
+ "caught_by_upstream_known": {
+  "lightgbm_daily": {
+   "False": 0.9,
+   "True": 0.391
+  },
+  "tgn_transition": {
+   "False": 0.898,
+   "True": 0.522
+  }
+ },
+ "never_caught_upstream_known": 8,
+ "missed_rank_bands": {
+  "lightgbm_daily": {
+   "1-10, in cooldown": 8,
+   "11-20": 17,
+   "21-50": 13,
+   "51-100": 6,
+   ">100": 43
+  },
+  "tgn_transition": {
+   "1-10, in cooldown": 3,
+   "11-20": 15,
+   "21-50": 24,
+   "51-100": 9,
+   ">100": 28
+  }
+ },
+ "alert_kinds": {
+  "lightgbm_daily": {
+   "active mule": 0.1198,
+   "member collector, during case": 0.0033,
+   "member collector, outside case": 0.0011,
+   "member destination, during case": 0.1059,
+   "member destination, outside case": 0.0385,
+   "member disperser, during case": 0.0022,
+   "member disperser, outside case": 0.0037,
+   "member no_illicit, outside case": 0.0013,
+   "member source, during case": 0.0917,
+   "member source, outside case": 0.0765,
+   "mule outside its case": 0.0693,
+   "ordinary account": 0.4867
+  },
+  "tgn_transition": {
+   "active mule": 0.1198,
+   "member collector, during case": 0.0044,
+   "member collector, outside case": 0.0013,
+   "member destination, during case": 0.1046,
+   "member destination, outside case": 0.0409,
+   "member disperser, during case": 0.002,
+   "member disperser, outside case": 0.0013,
+   "member no_illicit, outside case": 0.0013,
+   "member source, during case": 0.0715,
+   "member source, outside case": 0.072,
+   "mule outside its case": 0.0507,
+   "ordinary account": 0.53
+  }
+ },
+ "ordinary": {
+  "ordinary_alerts": 5490,
+  "distinct_accounts": 1940,
+  "accounts_in_both_runs": 763,
+  "alerts_on_accounts_in_both_runs": 3631,
+  "accounts_alerted_5_plus": 418,
+  "share_new_partner_7d": 0.916,
+  "share_new_partner_7d_random": 0.051
+ }
+}

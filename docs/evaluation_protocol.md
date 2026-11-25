@@ -224,7 +224,21 @@ Research plan section 19 (decision 10). Only the training mules of a share of th
 
 - With a quarter of the cases labelled, LightGBM is within the run-to-run spread of the full-label model; the loss grows below 10% and is large at 1%. Seed 1 is the weakest from 1% to 10%; at 1% it has the most labelled mules (8), but 7 of them come from one cycle case (seeds 0 and 2: relay chain and fan-in/fan-out cases), so which cases are labelled matters more than how many mules they hold.
 - Leaving the unlabelled mules out of training instead (sensitivity run, `_drop`) changes little: 0.593, 0.738, 0.755, 0.792 at 1 / 5 / 10 / 25%. Against counting them as negatives, the only clear gap is 1% seed 1 (+15.0 [+7.9, +22.6]); at 5% and above no interval excludes 0.
-- The graph models (TGN with features, STA-GT-inspired, the role-transition step) run once the class-imbalance choice of section 7 is made, with the same cases per seed.
+
+**Graph models** (test, K = 10, mean and range over seeds 0 / 1 / 2; same labelled cases per seed as LightGBM; Kaggle T4, commit `cf346a3`, batches `verzol/earlymule-tgn-lf-1` to `-5`). The 100% column is the full-label run of each model; LightGBM at 25% is the only 25% row so far.
+
+| Model | 1% | 5% | 10% | 100% |
+|---|---|---|---|---|
+| LightGBM, full feature set | 0.541 (0.318–0.665) | 0.742 (0.671–0.780) | 0.744 (0.671–0.798) | 0.809 |
+| TGN with features | 0.514 (0.376–0.636) | 0.715 (0.676–0.734) | 0.721 (0.699–0.740) | 0.825 |
+| Role-transition step | 0.349 (0.156–0.613) | 0.692 (0.642–0.740) | 0.715 (0.647–0.751) | 0.848 (0.831 pooled over 6 runs, decision 9) |
+| STA-GT-inspired | 0.480 (0.243–0.659) | 0.724 (0.659–0.757) | 0.713 (0.688–0.740) | 0.761 |
+
+- No graph model is shown better than LightGBM at the same fraction in any seed (paired case bootstrap, `compare`); most intervals contain 0, and the largest gaps go against the graph models (role-transition step at 1%: −19.2 points on average).
+- The models that lead with full labels lose the most: from 100% to 5% the role-transition step drops 15.6 points, TGN with features 11.0, LightGBM 6.7 and STA-GT 3.7. At 5% and 10% all four lie within about 3 points of each other, so the gain of the temporal models on the main dataset needs most of the training cases.
+- At 1% the spread between seeds (up to 46 points) is larger than any gap between models. Seed 1 (the cycle-case draw above) is the weakest for LightGBM, TGN with features and STA-GT; the role-transition step is weakest on seed 0 (0.156, against 0.278 on seed 1).
+- STA-GT seed 0 ran out of GPU memory when two STA-GT runs shared one T4 and was rerun alone (batch 5); the notebook now gives STA-GT one run per GPU.
+- Still to run on the main dataset: 25% for the graph models and the `_drop` sensitivity at 5% and 25%.
 
 ## 12. Confirmation on new simulations (pre-registered 2026-11-24)
 

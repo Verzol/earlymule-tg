@@ -6,7 +6,8 @@ one after another, the seeds of a stage in parallel on the two T4 GPUs. Batches 
 (id verzol/earlymule-tgn-lf-<k>, T4, the 80K export and the case map as inputs).
 Writes notebooks/kaggle/label_fraction/batches_gpu/<k>/ (git-ignored).
 With --dataset <draw>, writes the two confirmation batches of that draw instead (protocol section 12): full labels
-for every graph model of the core set and 5% of cases for the role-transition step, kernels
+for every graph model of the core set and 5% of cases for the role-transition step (a: role-transition step,
+GraphSAGE, STA-GT; b: TGN with features), kernels
 verzol/earlymule-conf-<draw suffix>-<a|b>, folders batches_gpu/<draw>-<a|b>/; the draw's export carries its case map.
 Run: python notebooks/kaggle/label_fraction/make_gpu_batches.py --commit <sha> [--dataset <draw>]
 Push: kaggle kernels push -p notebooks/kaggle/label_fraction/batches_gpu/<k>
@@ -31,10 +32,11 @@ BATCHES = [
     # Batches 2 and 3 ran two STA-GT seeds on one GPU and seed 0 ran out of memory; 0.1 seed 0 in case batch 4 does too
     [(STAGT, "stagt.yaml", 0.01, [0]), (STAGT, "stagt.yaml", 0.05, [0]), (STAGT, "stagt.yaml", 0.1, [0])],
 ]
-# Confirmation draws: about 5 and 3.5 session hours, so both fit one 12-hour session each
+# Confirmation draws: about 6.2 and 3 session hours (measured on batches 1-5); b is short so it fits a nearly
+# spent weekly quota
 CONFIRMATION = {"a": [(TGN, "tgn_transition.yaml", None), (TGN, "tgn_transition.yaml", 0.05),
-                      (SAGE, "graphsage.yaml", None)],
-                "b": [(TGN, "tgn_features.yaml", None), (STAGT, "stagt.yaml", None)]}
+                      (SAGE, "graphsage.yaml", None), (STAGT, "stagt.yaml", None)],
+                "b": [(TGN, "tgn_features.yaml", None)]}
 MAIN = "80K-earlymule-mule"
 
 

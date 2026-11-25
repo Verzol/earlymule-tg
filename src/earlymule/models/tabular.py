@@ -105,13 +105,15 @@ def fit(train: pd.DataFrame, val: pd.DataFrame, features: list[str], cfg: dict) 
 
 
 def config_from_cli(default: str) -> dict:
-    """Load configs/<--config> (default `default`) and override its seed with --seed, for repeated runs."""
+    """Load configs/<--config> (default `default`); --seed overrides the seed, --dataset names another AMLSim run."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default=default)
     parser.add_argument("--seed", type=int)
+    parser.add_argument("--dataset", help="AMLSim run folder; default from configs/paths.yaml")
     args = parser.parse_args()
     cfg = load_config(args.config)
-    return {**cfg, "seed": cfg["seed"] if args.seed is None else args.seed}
+    cfg = {**cfg, "seed": cfg["seed"] if args.seed is None else args.seed}
+    return {**cfg, "dataset": args.dataset} if args.dataset else cfg
 
 
 def main() -> None:

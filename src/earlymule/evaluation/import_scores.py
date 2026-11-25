@@ -72,7 +72,8 @@ def main() -> None:
     if not args.no_log:
         config = {**meta["config"], "dataset": meta["dataset"], "export_commit": meta["export_commit"],
                   "epochs": meta["epochs"], "evaluation": "daily.yaml"}
-        log_run(run_name, config=config, seed=meta["seed"], metrics=metrics, commit=meta["commit"], dirty=meta["dirty"])
+        log_run(run_name, config=config, seed=meta["seed"], metrics=metrics, commit=meta["commit"], dirty=meta["dirty"],
+                dataset=meta["dataset"])
     k = next(x for x in metrics["test"]["early_detection"] if x["k_per_day"] == cfg["headline_k"])
     print(json.dumps({"run": run_name, "seed": meta["seed"], "out": str(out_dir),
                       "val_pr_auc": round(metrics["val"]["ranking"]["pr_auc"], 4),

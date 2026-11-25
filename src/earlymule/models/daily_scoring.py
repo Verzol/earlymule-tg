@@ -3,7 +3,8 @@
 A mule is positive while active (onset <= t <= completion). Train: daily snapshots of the train
 split with subsampled negatives. Validation and test: every day, regular accounts; test also on all accounts.
 Alerts: top K new accounts per day with a cooldown, plus the research plan's score threshold chosen on validation.
-Run: python -m earlymule.models.daily_scoring [--seed N] [--config daily.yaml]
+Run: python -m earlymule.models.daily_scoring [--seed N] [--config daily.yaml] [--dataset <AMLSim run>]
+(another dataset than the main one logs as <run_name>_<dataset>)
 Writes scores, per-mule outcomes and the model to experiments/runs/<run_name>/<commit>/seed<N>/ and appends
 one row to experiments/experiments.csv.
 """
@@ -15,6 +16,7 @@ import time
 
 import numpy as np
 
+from earlymule.config import load_paths
 from earlymule.data.splits import active_labels, chronological_splits
 from earlymule.evaluation.daily import evaluate_daily, mule_table
 from earlymule.evaluation.early_detection import early_detection
@@ -31,7 +33,11 @@ def main() -> None:
     rng = np.random.default_rng(cfg["seed"])
 
     # 1. Inputs and labels: positive while the mule case is running
-    inputs = load_inputs()
+    paths = load_paths()
+    if cfg.get("dataset"):
+        paths = paths.with_dataset(cfg["dataset"])
+        cfg["run_name"] += "" if paths.dataset == paths.main_dataset else f"_{paths.dataset}"
+    inputs = load_inputs(paths)
     mules = inputs["mules"]
     onset, completion = mules.onset_day.astype(float), mules.completion_day.astype(float)
     accts = inputs["accounts"].index
@@ -74,7 +80,7 @@ def main() -> None:
     # 5. Log and report
     config = {**cfg, "splits": {n: [s.first_day, s.last_day] for n, s in splits.items()},
               "train_rows": len(data["train"]), "feature_names": features}
-    log_run(cfg["run_name"], config=config, seed=cfg["seed"], metrics=metrics)
+    log_run(cfg["run_name"], config=config, seed=cfg["seed"], metrics=metrics, dataset=paths.dataset)
     print(json.dumps(metrics, indent=1))
 
 

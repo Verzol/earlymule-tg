@@ -84,6 +84,7 @@ def log_run(
     log_file: str | Path | None = None,
     commit: str | None = None,
     dirty: bool | None = None,
+    dataset: str | None = None,
 ) -> dict:
     """Append one run to the experiment log and return the row.
 
@@ -92,6 +93,7 @@ def log_run(
         metrics: metric name to value; stored as JSON.
         log_file: defaults to <experiments>/experiments.csv from configs/paths.yaml.
         commit, dirty: code state of a run made on another machine; default the local git state.
+        dataset: AMLSim run the model was trained on; default the configured main dataset.
     """
     paths = load_paths()
     log_file = Path(log_file) if log_file else paths.experiments / "experiments.csv"
@@ -101,7 +103,7 @@ def log_run(
     row = {
         "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "run_name": run_name,
-        "dataset": paths.dataset,
+        "dataset": dataset or paths.dataset,
         "commit": commit,
         "dirty": dirty,
         "seed": seed,

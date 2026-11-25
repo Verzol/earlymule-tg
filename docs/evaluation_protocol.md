@@ -250,7 +250,7 @@ Written before any of these datasets is generated, at the commit tagged `prereg-
 - **IBM AML HI-Small:** only if the feasibility check of 2026-12-06 says so. Its windows, cooldown and split are then fixed in a note before any model is trained on it.
 
 **Models.** Frozen at the tag, with no tuning on the new data:
-- LightGBM with 72 features.
+- LightGBM with 72 features (clarified 2026-11-25, see below).
 - GraphSAGE.
 - TGN with features.
 - STA-GT-inspired.
@@ -274,6 +274,10 @@ Written before any of these datasets is generated, at the commit tagged `prereg-
 5. **Not shown:** otherwise, with the pooled difference and its 95% interval still reported.
 6. The per-seed rule of section 6 is reported for each draw alongside.
 7. Comparisons outside the family (harder data, unseen typologies, other alert budgets, other models) are descriptive: intervals without correction, no verdict.
+
+**LightGBM in the family (clarification, 2026-11-25).** Written while the first LightGBM runs on G1 were still running and before any result on a new draw was read. The main dataset has two LightGBM runs with the same 72 features and parameters that differ only in how the 1% of training negatives is drawn: `lightgbm_daily` (`earlymule.models.daily_scoring`, local, draws per day while building the splits; 0.832) and `lgbm_abl_full` (`earlymule.models.lightgbm_export`, Kaggle CPU, one draw over all training rows of the export; 0.809). Paired on the main test set, the local run leads by −0.6 [−3.3, +1.7], +4.1 [+1.6, +7.0] and +3.5 [+1.1, +6.8] points on seeds 0 / 1 / 2.
+- The family uses the export run (`lightgbm_export --ablation full`, run names `lgbm_abl_full_<draw>`): the same code runs on every draw and needs no GPU quota.
+- Because the local run may be the stronger baseline, it also runs on G1–G3 (`daily_scoring --dataset <draw>`, run names `lightgbm_daily_<draw>`, three seeds), and comparisons 1 and 4 (full labels) are repeated against it as a sensitivity row; comparison 3 (5% of cases) has only the export run. If the verdict differs between the two LightGBM runs, both are reported and the thesis states that the conclusion depends on the baseline's negative sample.
 
 **Unseen typologies** (descriptive). For each of the five typologies, its training mules are removed from the training rows, not relabelled as negatives, and the model is scored on that typology's test mules. LightGBM runs all five, the role-transition step two (collector to a single exit, cycle), three seeds each, on the main dataset. Expected: little effect, because the share of inflow from new partners leads every typology (AUC 0.94 to 0.98) and each typology has few test mules.
 

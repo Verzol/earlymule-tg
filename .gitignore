@@ -57,3 +57,6 @@ Thumbs.db
 # Planning notes and generated decks live on Drive, not in the repo
 docs/backlog.md
 docs/*.html
+
+# Console logs of local runs; results live in experiments.csv
+experiments/logs/

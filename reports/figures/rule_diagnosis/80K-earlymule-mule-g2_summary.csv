@@ -1,0 +1,7 @@
+typology,senders_ok,share_ok,both,ill_senders_ok,ill_share_ok,ill_both,mules,median_max_ill_senders
+cycle,0.05,0.25,0.0,0.0,0.25,0.0,40,1.0
+mule_collect_disperse,0.456,0.439,0.088,0.246,0.474,0.018,57,1.0
+mule_collect_exit,0.867,0.267,0.2,0.833,0.2,0.133,30,3.0
+mule_fan_in_out,0.781,0.312,0.094,0.75,0.188,0.125,32,3.0
+mule_relay_chain,0.133,0.6,0.0,0.0,0.756,0.0,45,1.0
+all,0.417,0.392,0.069,0.309,0.407,0.044,204,1.0

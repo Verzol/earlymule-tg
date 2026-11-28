@@ -83,7 +83,7 @@ The advisor's moment, the mule's own outgoing transfer, is one hop later than mo
 
 Evaluation protocol section 12 lists a rule after the Vietnamese indicators as a reference row. This section fixes its form before it is run on any dataset; nothing below is tuned on validation or test.
 
-**Source.** Appendix 02 of Circular 17/2024/TT-NHNN as replaced by Circular 25/2025/TT-NHNN, column 13 ("Lý do nghi ngờ"):
+**Source.** Appendix 02 of Circular 17/2024/TT-NHNN as replaced by Circular 25/2025/TT-NHNN of 31 August 2025 (Art. 13(1)), column 13 ("Lý do nghi ngờ"); full text at https://thuvienphapluat.vn/van-ban/Tien-te-Ngan-hang/Thong-tu-25-2025-TT-NHNN-sua-doi-Thong-tu-17-2024-TT-NHNN-672167.aspx (read 2026-11-28):
 
 - Code 3: "Tài khoản thanh toán nhận tiền từ nhiều tài khoản thanh toán khác nhau và được chuyển đi hoặc rút ra ngay trong thời gian rất ngắn (không để lại số dư hoặc để lại rất ít)." (the account receives money from many different accounts and it is forwarded or withdrawn within a very short time, leaving no or very little balance)
 - Code 4: "Tài khoản thanh toán có hơn 03 giao dịch nhận tiền từ các tài khoản thanh toán nằm trong danh sách có dấu hiệu nghi ngờ liên quan đến lừa đảo, gian lận, giả mạo,..." (more than 3 incoming transfers from accounts on the list of suspected fraud)
@@ -108,3 +108,23 @@ Fired accounts are ranked by `amt_in_7d` (largest inflow first, then `acct_id`),
 **What is expected, stated in advance.** Code 3 needs forwarding to be observed, and a mule's first illicit outflow is its first forwarding of case money. The rule can therefore alert a mule before that outflow only when the mule's earlier normal activity already matches, so it should score low on the primary metric; its comparison with the models rests on detection by completion. The 0.8 share was set knowing that simulated mules forward exactly 90% (`docs/data_spec.md` section 9, item 4), so on this data the rule's numbers are an upper bound for a rule of this kind.
 
 **Where it runs.** Main dataset (test period, development data) and draws g1 to g5 (test period), from the exported point-in-time features; no training, so one run per dataset.
+
+## 10. Why the rule catches few mules even by completion (checked 2026-11-28, after scoring)
+
+Section 9 predicted that code 3 would be late; it also turned out to catch only 3–7% of mules by completion, although simulated mules forward 90% of what they receive. `src/earlymule/analysis/rule_diagnosis.py` checks, for every test mule on each day of its case on which it is in the scored population, whether each condition of the rule holds: once on all its transfers (what the rule sees) and once on its illicit transfers alone (the case money, known only from the ground truth). Pooled over the main dataset and draws g1–g5 (1,223 mules; tables in `reports/figures/rule_diagnosis/`), share of mules meeting the condition on at least one case day, in %:
+
+| Typology | ≥ 3 senders | ≥ 80% forwarded within a day | Both (the rule) | ≥ 3 senders, case money | ≥ 80% forwarded, case money | Both, case money |
+|---|---:|---:|---:|---:|---:|---:|
+| Cycle | 15.2 | 32.3 | 0.0 | 0.0 | 27.0 | 0.0 |
+| Collect-disperse | 35.6 | 49.8 | 4.5 | 25.1 | 49.8 | 1.1 |
+| Collect-exit | 85.9 | 26.9 | 11.9 | 81.5 | 11.0 | 4.8 |
+| Fan-in-out | 72.3 | 32.0 | 9.7 | 62.1 | 15.5 | 2.4 |
+| Relay chain | 15.4 | 55.6 | 0.4 | 0.0 | 66.0 | 0.0 |
+| All | 42.4 | 39.7 | 4.9 | 31.1 | 34.8 | 1.6 |
+
+The rule's 4.9% matches its 3–7% by completion, so the alert budget and cooldown are not what holds it back: the two conditions rarely hold on the same day. Two causes, by typology:
+
+1. **One sender of case money.** Every cycle and relay-chain mule, and 71% of collect-disperse mules, receive the case money from a single account (59% of all mules). "Many different accounts" is then never a property of the laundering itself; it holds only when normal senders happen to add up to three.
+2. **Collecting before forwarding.** Collect-exit and fan-in-out mules do receive from many accounts (82% and 62% on case money), but they gather the money over several days before sending it on, so at most 11–16% of them forward 80% within a day. Code 3 describes a pass-through account; these mules are pooling accounts.
+
+The first guess after scoring, that a mule's normal transfers dilute the forwarded share, does not hold: the rule's conditions hold more often on all transfers than on case money alone (4.9% against 1.6%), because normal senders add to the count. Both causes come from the case structures AMLSim generates; a rule of this kind may do better on real mules that are paid by many victims and forward within the hour (section 3), which the harder data of `docs/data_spec.md` decision 5 is meant to represent.

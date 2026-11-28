@@ -1,10 +1,10 @@
-"""Tests for label scarcity: whole cases keep or lose labels, nested sets per seed, relabel modes."""
+"""Tests for label scarcity: whole cases keep or lose labels, nested sets per seed, relabel modes, left-out typology."""
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from earlymule.data.label_fraction import kept_mules, relabel, train_mule_cases
+from earlymule.data.label_fraction import kept_mules, leave_out, relabel, train_mule_cases
 
 
 def cases(n_cases: int = 40) -> pd.DataFrame:
@@ -43,7 +43,18 @@ def test_relabel_negative_or_drop():
 def test_train_mule_cases_needs_one_case_per_mule():
     """Every training mule maps to its case; a mule without a case is rejected."""
     rows = pd.DataFrame({"acct_id": [1, 1, 2, 3], "label": [1, 0, 1, 0]})
-    gt = pd.DataFrame({"acct_id": [1, 2, 9], "alert_id": [7, 8, 9]})
-    assert train_mule_cases(rows, gt).to_dict("list") == {"acct_id": [1, 2], "alert_id": [7, 8]}
+    gt = pd.DataFrame({"acct_id": [1, 2, 9], "alert_id": [7, 8, 9], "typology": ["cycle", "relay", "cycle"]})
+    assert train_mule_cases(rows, gt).to_dict("list") == {"acct_id": [1, 2], "alert_id": [7, 8],
+                                                          "typology": ["cycle", "relay"]}
     with pytest.raises(ValueError):
         train_mule_cases(rows, gt[gt.acct_id != 2])
+
+
+def test_leave_out_takes_one_typology_and_rejects_unknown_names():
+    """Only the mules of the named typology leave; an unknown name or a map without typology is an error."""
+    c = pd.DataFrame({"acct_id": [1, 2, 3], "alert_id": [7, 7, 8], "typology": ["cycle", "cycle", "relay"]})
+    assert leave_out(c, "cycle").tolist() == [1, 2]
+    with pytest.raises(ValueError):
+        leave_out(c, "fan_in")
+    with pytest.raises(ValueError):
+        leave_out(c.drop(columns="typology"), "cycle")

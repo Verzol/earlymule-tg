@@ -26,7 +26,7 @@ import numpy as np
 import pandas as pd
 
 from earlymule.config import load_paths
-from earlymule.data.label_fraction import kept_mules, relabel
+from earlymule.data.label_fraction import kept_mules, leave_out, relabel
 from earlymule.experiment_log import git_state, run_dir, set_seed
 from earlymule.models.tabular import fit, load_config
 
@@ -98,9 +98,11 @@ def main() -> None:
     parser.add_argument("--label-fraction", type=float, help="share of training cases that keep their mule labels")
     parser.add_argument("--label-cases", help="case map of the training mules (acct_id, alert_id)")
     parser.add_argument("--unlabeled", default="negative", choices=["negative", "drop"])
+    parser.add_argument("--shuffle-labels", action="store_true", help="permute the training labels (pipeline check)")
+    parser.add_argument("--leave-out-typology", help="drop every training row of the mules of this typology")
     args = parser.parse_args()
-    if (args.label_fraction is None) != (args.label_cases is None):
-        parser.error("--label-fraction and --label-cases go together")
+    if (args.label_fraction is not None or args.leave_out_typology) and args.label_cases is None:
+        parser.error("--label-fraction and --leave-out-typology need --label-cases")
     cfg = load_config(args.config)
     cfg["seed"] = cfg["seed"] if args.seed is None else args.seed
     set_seed(cfg["seed"])
@@ -115,6 +117,14 @@ def main() -> None:
         kept = kept_mules(pd.read_csv(args.label_cases), args.label_fraction, cfg["seed"])
         train_label = pd.Series(relabel(train_label.to_numpy(), train_rows.acct_id.to_numpy(), kept, args.unlabeled))
         n_mules = len(kept)
+    if args.leave_out_typology:
+        # Whole accounts leave training, pre-onset rows too, so the model never sees this typology's mules
+        gone = leave_out(pd.read_csv(args.label_cases), args.leave_out_typology)
+        train_label = train_label.where(~train_rows.acct_id.isin(gone).to_numpy())
+        n_mules -= len(gone)
+    if args.shuffle_labels:
+        # Own random stream, so the negative sample below stays the one of the seed's normal run
+        train_label = pd.Series(np.random.default_rng([cfg["seed"], 1]).permutation(train_label.to_numpy()))
     # Same random draw as the full-label run of the seed, so the sample of true negatives is the same;
     # dropped mule rows (NaN) are never kept
     mask = train_mask(train_label, cfg["train_negative_rate"], np.random.default_rng(cfg["seed"])) & train_label.notna().to_numpy()
@@ -135,6 +145,7 @@ def main() -> None:
     commit, dirty = git_state()
     dataset = manifest["dataset"]
     suffix = "" if args.label_fraction is None else f"_lf{args.label_fraction:g}" + ("_drop" if args.unlabeled == "drop" else "")
+    suffix += ("_shuffled" if args.shuffle_labels else "") + (f"_wo_{args.leave_out_typology}" if args.leave_out_typology else "")
     run_name = f"{cfg['run_name']}_{args.ablation}{suffix}" + ("" if dataset == load_paths().dataset else f"_{dataset}")
     out = Path(args.out) if args.out else run_dir(run_name, cfg["seed"])
     out.mkdir(parents=True, exist_ok=True)
@@ -148,7 +159,8 @@ def main() -> None:
             "dirty": dirty, "seed": cfg["seed"], "ablation": args.ablation, "features": features,
             "config": {k: v for k, v in cfg.items() if k not in ("families", "windows_patterns", "ablations")}
             | {"ablation": args.ablation, "dropped": cfg["ablations"][args.ablation],
-               "label_fraction": args.label_fraction or 1.0, "unlabeled": args.unlabeled, "labelled_mules": n_mules},
+               "label_fraction": args.label_fraction or 1.0, "unlabeled": args.unlabeled, "labelled_mules": n_mules,
+               "shuffle_labels": args.shuffle_labels, "left_out_typology": args.leave_out_typology},
             "device": "cpu", "lightgbm_version": lgb.__version__, "train_rows": int(mask.sum()),
             "best_iteration": int(model.best_iteration_), "best_val_pr_auc": round(model.best_score_["valid_0"]["average_precision"], 4),
             "epochs": None, "seconds": round(time.time() - start, 1)}

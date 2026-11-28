@@ -44,6 +44,7 @@ notebooks/kaggle/lgbm_ablation/batches/
 notebooks/kaggle/transfer_scoring/batches/
 notebooks/kaggle/label_fraction/batches/
 notebooks/kaggle/label_fraction/batches_gpu/
+notebooks/kaggle/lgbm_checks/batches/
 
 # External personal skills checkout; never stage or commit in this repository
 /verzol-ai-skills/

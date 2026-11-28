@@ -48,7 +48,7 @@ Real mules are much faster than the simulated ones. A daily review can stop a fi
 | United Kingdom | Delay an outbound payment up to 4 business days (SI 2024/1013, in force 30 October 2024) (secondary) | Only when fraud by a person other than the payer is suspected, i.e. to protect a victim; a complicit mule's own transfer goes through the anti-money-laundering consent route (7 working days, then possibly 31 more) (unverified) |
 | European Union | No right to reject an instant transfer for suspected fraud under the Instant Payments Regulation; the payer decides (primary, Commission Q&A) | A blocking power is being negotiated in the Payment Services Regulation |
 
-Vietnam also writes the mule pattern into regulation. Appendix 02 of Circular 17/2024/TT-NHNN (updated by Circular 25/2025/TT-NHNN, issued 31 August 2025, which also added Appendix 03 for corporate accounts) sets the monthly reporting template for accounts suspected of fraud or illegal activity. Among the listed suspicious-reason indicators are an account that receives money from many different payment accounts and forwards or withdraws it immediately within a very short time leaving little or no balance, repeated incoming transfers from accounts on the suspicious list (a specific ">3 transfers" threshold appears in secondary summaries and should be checked against the official PDF before verbatim quotation), and multiple accounts linked to one device (secondary). The first two are what the strongest features in the simulator measure (new senders, inflow surge, rapid forwarding) and what the propagation features of EMTG-72 measure.
+Vietnam also writes the mule pattern into regulation. Appendix 02 of Circular 17/2024/TT-NHNN (updated by Circular 25/2025/TT-NHNN, issued 31 August 2025, which also added Appendix 03 for corporate accounts) sets the monthly reporting template for accounts suspected of fraud or illegal activity. Among the nine suspicious-reason codes of the template are an account that receives money from many different payment accounts and forwards or withdraws it immediately within a very short time leaving little or no balance (code 3), more than 3 incoming transfers from accounts on the suspicious list (code 4), and one device used for more than one account (code 8) (wording checked against the full text of Circular 25/2025, 2026-11-28; section 9 quotes codes 3 and 4). The first two are what the strongest features in the simulator measure (new senders, inflow surge, rapid forwarding) and what the propagation features of EMTG-72 measure.
 
 A warning works on a deceived payer; it does not stop a complicit mule. For mules, the useful action at the moment of the first outgoing transfer is a delay or refusal followed by a report, which Vietnamese law allows for up to 3 working days.
 
@@ -76,4 +76,35 @@ The advisor's moment, the mule's own outgoing transfer, is one hop later than mo
 ## 8. Verification status against primary texts (audited 2026-11-19)
 
 - **Verified via official/legal mirrors:** Law on Anti-Money Laundering 2022 Art. 44 (max 3 working days, immediate report, immunity); Circular 17/2024/TT-NHNN Art. 21(1)(b); Circular 50/2024/TT-NHNN (superseding repealed Decision 2345/QĐ-NHNN) thresholds "above 10 million VND" per transfer and "above 20 million VND" per day; Circular 25/2025/TT-NHNN updating Appendix 02 of Circular 17/2024; SIMO has no publicly numbered standalone establishing act (deployed under SBV supervision directives such as Official Letter 3276/NHNN-TT).
-- **Still to check if quoted verbatim in thesis:** exact wording of the ">3 incoming transfers from suspicious accounts" threshold in the official PDF of Appendix 02 (Circular 17/2024 / 25/2025), and official NAPAS 24/7 rulebook timeout values.
+- **Checked 2026-11-28:** the wording of the nine suspicious-reason codes of Appendix 02 as replaced by Circular 25/2025/TT-NHNN (Art. 13(1)), from the full text of the circular on thuvienphapluat.vn; the ">3 incoming transfers" threshold is code 4. The circular defines no number for "many" accounts or for "a very short time" in code 3.
+- **Still to check if quoted verbatim in thesis:** the same codes in the State Bank's published PDF (Công báo), and official NAPAS 24/7 rulebook timeout values.
+
+## 9. Rule baseline after Appendix 02 (fixed 2026-11-28, before any score)
+
+Evaluation protocol section 12 lists a rule after the Vietnamese indicators as a reference row. This section fixes its form before it is run on any dataset; nothing below is tuned on validation or test.
+
+**Source.** Appendix 02 of Circular 17/2024/TT-NHNN as replaced by Circular 25/2025/TT-NHNN, column 13 ("Lý do nghi ngờ"):
+
+- Code 3: "Tài khoản thanh toán nhận tiền từ nhiều tài khoản thanh toán khác nhau và được chuyển đi hoặc rút ra ngay trong thời gian rất ngắn (không để lại số dư hoặc để lại rất ít)." (the account receives money from many different accounts and it is forwarded or withdrawn within a very short time, leaving no or very little balance)
+- Code 4: "Tài khoản thanh toán có hơn 03 giao dịch nhận tiền từ các tài khoản thanh toán nằm trong danh sách có dấu hiệu nghi ngờ liên quan đến lừa đảo, gian lận, giả mạo,..." (more than 3 incoming transfers from accounts on the list of suspected fraud)
+
+The other codes need data the simulator does not have (identity records, online advertising of accounts, warning lists, customer contact, devices) or are open-ended (code 6, unusual transactions, which is what the learned models do).
+
+**Main rule (code 3).** At the end of day t, over the window (t − 7, t] (point-in-time features, `docs/data_spec.md` section 7), an account fires when both hold:
+
+| Condition | Feature | Threshold | Reading of the text |
+|---|---|---|---|
+| Many different senders | `peers_in_7d` | ≥ 3 | "nhiều tài khoản khác nhau": more than two |
+| Forwarded at once, little left | `fwd_1d_7d` | ≥ 0.8 | at least 80% of the week's inflow sent on the same or the next day; a day is the finest time unit of AMLSim, and the simulator records no cash withdrawals |
+
+Fired accounts are ranked by `amt_in_7d` (largest inflow first, then `acct_id`), the order in which a reviewer would take them. Only fired accounts are alerted, under the same budget and cooldown as every model (10 new accounts a day, 30-day cooldown); on a day with fewer than 10 fired accounts the rule raises fewer alerts, and the realised alerts per day are reported. Population, labels and metrics are those of the protocol (regular accounts, detection before the first illicit outflow as the primary metric, before and by completion alongside).
+
+**Second row (code 3 or code 4).** The "list" is the bank's own: accounts the main rule fired on any day up to t − 1. An account also fires when, up to day t, it has received more than 3 transfers from listed accounts. Code-3 accounts come first, in the order above; code-4-only accounts follow, by the number of such transfers.
+
+**Random ranking.** A uniform random score for every account-day of the regular population, the same budget and cooldown; 10 repetitions (seeds 0 to 9), mean and range reported.
+
+**Sensitivity, reported as a grid and never used to choose:** senders ≥ 2, 3, 5 × forwarded share ≥ 0.5, 0.8, on the same window. The main row stays (3, 0.8) whatever the grid shows.
+
+**What is expected, stated in advance.** Code 3 needs forwarding to be observed, and a mule's first illicit outflow is its first forwarding of case money. The rule can therefore alert a mule before that outflow only when the mule's earlier normal activity already matches, so it should score low on the primary metric; its comparison with the models rests on detection by completion. The 0.8 share was set knowing that simulated mules forward exactly 90% (`docs/data_spec.md` section 9, item 4), so on this data the rule's numbers are an upper bound for a rule of this kind.
+
+**Where it runs.** Main dataset (test period, development data) and draws g1 to g5 (test period), from the exported point-in-time features; no training, so one run per dataset.

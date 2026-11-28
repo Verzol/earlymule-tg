@@ -99,7 +99,7 @@ The other codes need data the simulator does not have (identity records, online 
 
 Fired accounts are ranked by `amt_in_7d` (largest inflow first, then `acct_id`), the order in which a reviewer would take them. Only fired accounts are alerted, under the same budget and cooldown as every model (10 new accounts a day, 30-day cooldown); on a day with fewer than 10 fired accounts the rule raises fewer alerts, and the realised alerts per day are reported. Population, labels and metrics are those of the protocol (regular accounts, detection before the first illicit outflow as the primary metric, before and by completion alongside).
 
-**Second row (code 3 or code 4).** The "list" is the bank's own: accounts the main rule fired on any day up to t − 1. An account also fires when, up to day t, it has received more than 3 transfers from listed accounts. Code-3 accounts come first, in the order above; code-4-only accounts follow, by the number of such transfers.
+**Second row (code 3 or code 4).** The "list" is the bank's own: accounts the main rule fired on any day up to t − 1, alerted or not. It holds scored (regular) accounts only and starts empty on the first scored day, as the alert history does. An account also fires when, up to day t, it has received more than 3 transfers from listed accounts; every transfer from a listed sender counts, including those made before the sender was listed, since the bank reviews the account's whole history. Code-3 accounts come first, in the order above; code-4-only accounts follow, by the number of such transfers.
 
 **Random ranking.** A uniform random score for every account-day of the regular population, the same budget and cooldown; 10 repetitions (seeds 0 to 9), mean and range reported.
 

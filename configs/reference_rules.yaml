@@ -1,0 +1,15 @@
+# Reference rows: rule after Circular 17/2024 Appendix 02 and random ranking (reports/bank_feasibility.md section 9).
+# Run: python -m earlymule.models.reference_rules [--dataset <AMLSim run>]
+base: daily.yaml
+run_name: rule_circular17
+random_run_name: random_ranking
+rule:
+  window_days: 7            # features of the window (t - 7, t]
+  min_senders: 3            # code 3, "many different accounts"
+  min_forward_share: 0.8    # code 3, share of the window's inflow sent on the same or the next day
+  listed_min_transfers: 4   # code 4, "more than 03" incoming transfers from listed accounts
+# Reported as a grid, never used to choose the main row
+grid:
+  min_senders: [2, 3, 5]
+  min_forward_share: [0.5, 0.8]
+random_repetitions: 10      # seeds 0..9

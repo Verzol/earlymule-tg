@@ -157,6 +157,22 @@ Weekly scoring is close to its ceiling; daily scoring is where early-detection m
 
 **Difficulty check** (`reports/difficulty_check.md`, weekly test, regular accounts): static input and activity level alone rank at random (PR-AUC 0.0006 and 0.0008, mule rate 0.0006); the best unlearned rule (distinct payees in the last 7 days) reaches 0.07; LightGBM 0.80. No label leakage was found.
 
+**Confirmation draws** (`docs/evaluation_protocol.md` section 12). Five more AMLSim runs with the main configuration and `random_seed` 1–5 (`80K-earlymule-mule-g1` to `-g5`). Main conclusions come from g1–g3; g4–g5 run LightGBM only. Mules are split by onset day with the same day split; "best single feature" is the highest ROC-AUC of one whole-period activity column (shortcut audit).
+
+| | main | g1 | g2 | g3 | g4 | g5 |
+|---|---:|---:|---:|---:|---:|---:|
+| Transactions | 1,789,235 | 1,790,258 | 1,789,949 | 1,789,239 | 1,789,416 | 1,790,836 |
+| Cases | 500 | 500 | 500 | 500 | 500 | 500 |
+| Case members | 3,531 | 3,498 | 3,528 | 3,479 | 3,517 | 3,538 |
+| Mules (train / val / test) | 942 (564 / 154 / 224) | 911 (582 / 122 / 207) | 923 (600 / 116 / 207) | 919 (561 / 129 / 229) | 912 (595 / 115 / 202) | 938 (628 / 131 / 179) |
+| Cycle / collect-disperse / collect-exit / fan-in-out / relay-chain | 321 / 170 / 150 / 150 / 151 | 286 / 174 / 150 / 150 / 151 | 286 / 181 / 150 / 150 / 156 | 304 / 175 / 150 / 150 / 140 | 294 / 169 / 150 / 150 / 149 | 303 / 171 / 150 / 150 / 164 |
+| Best single feature, regular accounts | 0.525 | 0.553 | 0.522 | 0.543 | 0.526 | 0.523 |
+| Best single feature, all accounts | 0.918 | 0.920 | 0.918 | 0.919 | 0.917 | 0.916 |
+| Illicit transfers without a milestone | 0 | 0 | 0 | 0 | 0 | 0 |
+| Processed at commit (clean tree) | `beb2a5d` | `ce5dd39` | `ce5dd39` | `ce5dd39` | `ce5dd39` | `ce5dd39` |
+
+The draws match the main dataset in size, typology mix and shortcut level, so they test the same task on unseen data rather than a harder one.
+
 ## 8. Changes from the research plan
 
 | Research plan | This dataset | Reason |
